@@ -1,0 +1,178 @@
+name: ScreenPause
+fileGroups: [ScreenPause.storekit]
+options:
+  deploymentTarget:
+    iOS: "17.0"
+  developmentLanguage: ja
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    TARGETED_DEVICE_FAMILY: "1,2"
+    CODE_SIGN_ENTITLEMENTS: ScreenPause.entitlements
+    MARKETING_VERSION: "1.0.0"
+    CURRENT_PROJECT_VERSION: "1"
+targets:
+  ScreenPause:
+    type: application
+    platform: iOS
+    sources:
+      - path: App
+        excludes: [PrivacyInfo.xcprivacy]
+      - path: Shared
+      - path: App/PrivacyInfo.xcprivacy
+        buildPhase: resources
+      - path: docs/legal/privacy.md
+        buildPhase: resources
+      - path: docs/legal/terms.md
+        buildPhase: resources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: jp.screenpause.app
+    info:
+      path: App/Info.plist
+      properties:
+        CFBundleDisplayName: ひと呼吸
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LegalBaseURL: $(SCREEN_PAUSE_LEGAL_BASE_URL)
+        UILaunchScreen: {}
+    dependencies:
+      - target: PauseMonitor
+        embed: true
+      - target: PauseShield
+        embed: true
+      - target: PauseAction
+        embed: true
+      - target: PauseReport
+        embed: true
+      - target: PauseWidgets
+        embed: true
+  PauseMonitor:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: Monitor
+        excludes: [PrivacyInfo.xcprivacy]
+      - path: Shared
+      - path: Monitor/PrivacyInfo.xcprivacy
+        buildPhase: resources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: jp.screenpause.app.monitor
+    info:
+      path: Monitor/Info.plist
+      properties:
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.deviceactivity.monitor-extension
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).Monitor
+  PauseShield:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: Shield
+        excludes: [PrivacyInfo.xcprivacy]
+      - path: Shared
+      - path: Shield/PrivacyInfo.xcprivacy
+        buildPhase: resources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: jp.screenpause.app.shield
+    info:
+      path: Shield/Info.plist
+      properties:
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.ManagedSettingsUI.shield-configuration-service
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).Shield
+  PauseAction:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: Action
+        excludes: [PrivacyInfo.xcprivacy]
+      - path: Shared
+      - path: Action/PrivacyInfo.xcprivacy
+        buildPhase: resources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: jp.screenpause.app.action
+    info:
+      path: Action/Info.plist
+      properties:
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.ManagedSettings.shield-action-service
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).Action
+  PauseReport:
+    type: extensionkit-extension
+    platform: iOS
+    sources:
+      - path: Report
+        excludes: [PrivacyInfo.xcprivacy]
+      - path: Shared/UsagePeriods.swift
+      - path: Shared/UsageReportView.swift
+      - path: Report/PrivacyInfo.xcprivacy
+        buildPhase: resources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: jp.screenpause.app.report
+        CODE_SIGN_ENTITLEMENTS: Report/Report.entitlements
+    info:
+      path: Report/Info.plist
+      properties:
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        EXAppExtensionAttributes:
+          EXExtensionPointIdentifier: com.apple.deviceactivityui.report-extension
+  PauseWidgets:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: Widgets
+        excludes: [PrivacyInfo.xcprivacy]
+      - path: Shared
+      - path: Widgets/PrivacyInfo.xcprivacy
+        buildPhase: resources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: jp.screenpause.app.widgets
+        CODE_SIGN_ENTITLEMENTS: Widgets/Widgets.entitlements
+    info:
+      path: Widgets/Info.plist
+      properties:
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        CFBundleDisplayName: ひと呼吸
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+  ScreenshotTests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [ScreenshotTests]
+    dependencies:
+      - target: ScreenPause
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: jp.screenpause.app.screenshots
+        CODE_SIGN_ENTITLEMENTS: ""
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: ScreenPause
+schemes:
+  ScreenPause:
+    build:
+      targets:
+        ScreenPause: all
+    run:
+      storeKitConfiguration: ScreenPause.storekit
+  ScreenPauseScreenshots:
+    build:
+      targets:
+        ScreenPause: all
+        ScreenshotTests: [test]
+    test:
+      config: Debug
+      targets: [ScreenshotTests]

@@ -1,0 +1,1 @@
+{"version":1,"land":"land/main","test":["node","--test","checks/domain.test.mjs"],"publish":{"github":"YutoNishimura-v2/screen-pause","visibility":"public","branch":"main"}}

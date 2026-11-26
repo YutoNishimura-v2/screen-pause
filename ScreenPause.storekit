@@ -1,0 +1,74 @@
+{
+  "identifier": "939FF0DC-44D4-459A-90C8-64D6084144F2",
+  "nonRenewingSubscriptions": [],
+  "products": [
+    {
+      "displayPrice": "7800",
+      "familyShareable": false,
+      "internalID": "1000000003",
+      "localizations": [
+        {"description": "買い切りの Pro。価格は仮の値です。", "displayName": "ひと呼吸 Pro 買い切り", "locale": "ja"}
+      ],
+      "productID": "jp.screenpause.app.pro.lifetime",
+      "referenceName": "Pro 買い切り（仮の値）",
+      "type": "NonConsumable"
+    }
+  ],
+  "settings": {
+    "_failTransactionsEnabled": false,
+    "_locale": "ja_JP",
+    "_storefront": "JPN",
+    "_storeKitErrors": []
+  },
+  "subscriptionGroups": [
+    {
+      "id": "1000000000",
+      "localizations": [
+        {"description": "ひと呼吸 Pro", "displayName": "ひと呼吸 Pro", "locale": "ja"}
+      ],
+      "name": "ひと呼吸 Pro",
+      "subscriptions": [
+        {
+          "adHocOffers": [],
+          "codeOffers": [],
+          "displayPrice": "580",
+          "familyShareable": false,
+          "groupNumber": 1,
+          "internalID": "1000000001",
+          "introductoryOffer": null,
+          "localizations": [
+            {"description": "1か月の Pro。価格は仮の値です。", "displayName": "ひと呼吸 Pro 月額", "locale": "ja"}
+          ],
+          "productID": "jp.screenpause.app.pro.monthly",
+          "recurringSubscriptionPeriod": "P1M",
+          "referenceName": "Pro 月額（仮の値）",
+          "subscriptionGroupID": "1000000000",
+          "type": "RecurringSubscription"
+        },
+        {
+          "adHocOffers": [],
+          "codeOffers": [],
+          "displayPrice": "4800",
+          "familyShareable": false,
+          "groupNumber": 1,
+          "internalID": "1000000002",
+          "introductoryOffer": {
+            "internalID": "1000000004",
+            "numberOfPeriods": 1,
+            "paymentMode": "free",
+            "subscriptionPeriod": "P2W"
+          },
+          "localizations": [
+            {"description": "1年間の Pro。価格は仮の値です。", "displayName": "ひと呼吸 Pro 年額", "locale": "ja"}
+          ],
+          "productID": "jp.screenpause.app.pro.yearly",
+          "recurringSubscriptionPeriod": "P1Y",
+          "referenceName": "Pro 年額（仮の値）",
+          "subscriptionGroupID": "1000000000",
+          "type": "RecurringSubscription"
+        }
+      ]
+    }
+  ],
+  "version": {"major": 3, "minor": 0}
+}
