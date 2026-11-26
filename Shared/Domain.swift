@@ -25,6 +25,7 @@ struct ProAccess: Codable, Equatable {
 
 enum PaywallReason: String, Identifiable {
     case secondSchedule, progressHistory, customPause
+    case strictMode
 
     var id: Self { self }
 
@@ -104,7 +105,7 @@ enum PauseWindow {
     static let wait: TimeInterval = 10
     static let access: TimeInterval = 300
     static let escalationGrowth = 2
-    static let escalationCap = 60
+    static let escalationCap = 300
 
     /// Wait before the Nth unlock of the local day: base × growth^(N-1), capped.
     static func waitSeconds(
@@ -166,7 +167,7 @@ enum PauseWindow {
 }
 
 struct PausePreferences: Codable, Equatable {
-    static let secondsRange = 0...30
+    static let secondsRange = 0...60
     static let messageLimit = 80
     static let standard = Self(seconds: Int(PauseWindow.wait), message: "")
 

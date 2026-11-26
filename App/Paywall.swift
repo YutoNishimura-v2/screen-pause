@@ -29,22 +29,37 @@ struct Paywall: View {
                         .foregroundStyle(.secondary)
                     if demo { Text("デモ価格（仮の値）").foregroundStyle(.secondary) }
                 }
+                Section("Pro でできること") {
+                    Text("厳格モードで制限中の一時解除を止める")
+                    Text("開くたびに延びる待ち時間（最大\(PauseWindow.escalationCap)秒）")
+                    Text("月ごとの達成カレンダー")
+                    Text("複数の制限予定")
+                    Text("待ち時間と制限画面のメッセージの変更")
+                }
                 Section {
                     ForEach(availablePlans) { option in
                         Button {
                             selected = option
                             manuallySelected = true
                         } label: {
-                            ViewThatFits(in: .horizontal) {
-                                HStack {
-                                    planName(option)
-                                        .fixedSize(horizontal: true, vertical: false)
-                                    Spacer(minLength: 8)
-                                    Text(displayPrice(option)).fixedSize()
+                            VStack(alignment: .leading, spacing: 4) {
+                                ViewThatFits(in: .horizontal) {
+                                    HStack {
+                                        planName(option)
+                                            .fixedSize(horizontal: true, vertical: false)
+                                        Spacer(minLength: 8)
+                                        Text(displayPrice(option)).fixedSize()
+                                    }
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        planName(option)
+                                        Text(displayPrice(option))
+                                    }
                                 }
-                                VStack(alignment: .leading, spacing: 4) {
-                                    planName(option)
-                                    Text(displayPrice(option))
+                                if option == .yearly {
+                                    if demo || trial { Text("14日間無料").font(.footnote) }
+                                    if let savings = yearlySavings {
+                                        Text("月額比 約\(savings)%お得").font(.footnote)
+                                    }
                                 }
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -73,10 +88,7 @@ struct Paywall: View {
                     }
                     if let message { Text(message).font(.footnote) }
                 }
-                Section("Pro でできること") {
-                    Text("複数の制限予定")
-                    Text("待ち時間と制限画面のメッセージの変更")
-                    Text("同じ日に開くたびに延びる待ち時間（最大\(PauseWindow.escalationCap)秒）")
+                Section {
                     Button("購入を復元") { Task { await restore() } }.disabled(demo || loading || busy)
                     LegalLinks()
                 }
@@ -102,6 +114,7 @@ struct Paywall: View {
         case .secondSchedule: "時間帯を追加する"
         case .progressHistory: "回数の履歴と連続日数を見る"
         case .customPause: "待ち時間とメッセージを変える"
+        case .strictMode: "制限中の一時解除を止める"
         }
     }
 
@@ -114,6 +127,15 @@ struct Paywall: View {
     }
 
     private var hasTrial: Bool { selected == .yearly && (demo || trial) }
+
+    private var yearlySavings: Int? {
+        if demo { return 31 }
+        guard let monthly = products[.monthly]?.price, let yearly = products[.yearly]?.price,
+              monthly > 0, yearly < monthly * 12 else { return nil }
+        let savings = (1 - yearly / (monthly * 12)) * 100
+        let percent = Int(NSDecimalNumber(decimal: savings).doubleValue.rounded())
+        return percent > 0 ? percent : nil
+    }
 
     private var availablePlans: [ProProduct] {
         ProProduct.allCases.filter { demo || products[$0] != nil }

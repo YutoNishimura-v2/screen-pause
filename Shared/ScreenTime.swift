@@ -78,8 +78,9 @@ struct SharedState: Codable {
     }
 
     func isStrict(at now: Date, calendar: Calendar = .current) -> Bool {
-        BlockRules.isStrict(enabled: settings?.strictEnabled == true,
-                            active: isBlocking(at: now, calendar: calendar))
+        PaywallReason.strictMode.isAvailable(on: plan(at: now)) &&
+            BlockRules.isStrict(enabled: settings?.strictEnabled == true,
+                                active: isBlocking(at: now, calendar: calendar))
     }
 
     /// Returns the pending unlock request only if it matches the active block, current wait, and access window.
@@ -241,6 +242,9 @@ enum ScreenTime {
         try transaction(applyShields: true) { state in
             let now = Date.now
             guard state.settings != nil else { throw Failure.invalidSettings }
+            guard !enabled || PaywallReason.strictMode.isAvailable(on: state.plan(at: now)) else {
+                throw Failure.proRequired
+            }
             guard enabled || !state.isStrict(at: now) else { throw Failure.strictInProgress }
             state.settings?.strictEnabled = enabled
             state.reconcile(at: now, calendar: .current)

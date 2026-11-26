@@ -11,7 +11,7 @@ const section = (source, start, end) => {
 };
 
 // Mirrors PauseWindow.waitSeconds in Shared/Domain.swift.
-function waitSeconds(unlockCount, base = 10, growth = 2, cap = 60) {
+function waitSeconds(unlockCount, base = 10, growth = 2, cap = 300) {
   const clampedBase = Math.max(0, base);
   const clampedCap = Math.max(0, cap);
   if (clampedBase === 0 || clampedCap === 0) return 0;
@@ -92,7 +92,7 @@ function pendingAction(requestedAtMs, nowMs, waitSecondsValue, strict = false) {
 
 // Mirrors PausePreferences.isValid in Shared/Domain.swift.
 const isValidPausePreferences = ({ seconds, message = '', escalating = false }) =>
-  seconds >= 0 && seconds <= 30 && (!escalating || seconds > 0) && message.length <= 80;
+  seconds >= 0 && seconds <= 60 && (!escalating || seconds > 0) && message.length <= 80;
 
 // Mirrors Progress.recordResult.
 function recordResult(results, key, kept, limit = 366) {
@@ -102,7 +102,8 @@ function recordResult(results, key, kept, limit = 366) {
 }
 
 test('the Nth unlock wait grows from the base and stops at the cap', () => {
-  assert.deepEqual([1, 2, 3, 4, 5, 50].map((n) => waitSeconds(n)), [10, 20, 40, 60, 60, 60]);
+  assert.deepEqual([1, 2, 3, 4, 5, 6].map((n) => waitSeconds(n)), [10, 20, 40, 80, 160, 300]);
+  assert.equal(waitSeconds(50), 300);
   assert.equal(waitSeconds(0), 10, 'N below 1 behaves as the first unlock');
   assert.equal(waitSeconds(3, 0), 0, 'a zero base never waits');
   assert.equal(waitSeconds(2, 15, 3, 50), 45);
@@ -113,7 +114,7 @@ test('the Nth unlock wait grows from the base and stops at the cap', () => {
 
   const domain = read('../Shared/Domain.swift');
   const pause = section(domain, 'enum PauseWindow', 'struct PausePreferences');
-  assert.match(pause, /static let escalationGrowth = 2\s+static let escalationCap = 60/);
+  assert.match(pause, /static let escalationGrowth = 2\s+static let escalationCap = 300/);
   assert.match(pause, /static func waitSeconds\(\s+unlockCount: Int,\s+base: Int = Int\(wait\),\s+growth: Int = escalationGrowth,\s+cap: Int = escalationCap\s+\) -> Int/);
   assert.match(pause, /var seconds = min\(clampedBase, clampedCap\)\s+guard factor > 1 else \{ return seconds \}/);
   assert.match(pause, /multipliedReportingOverflow\(by: factor\)\s+seconds = overflow \? clampedCap : min\(product, clampedCap\)/);
@@ -147,6 +148,84 @@ test('the unlock counter resets at local midnight and follows a time zone change
   const action = read('../Action/Action.swift');
   assert.equal(action.match(/state\.permit = \.init/g)?.length, 1);
   assert.match(action, /state\.permit = \.init\(app: request\.app, date: now\)\s+state\.session\?\.kept = false\s+state\.progress\.recordUnlock\(at: now, calendar: \.current\)/);
+});
+
+test('strict mode is Pro-only and its purchase entry works before StoreKit refresh', () => {
+  const domain = section(read('../Shared/Domain.swift'), 'enum PaywallReason', 'struct WeeklySchedule');
+  assert.match(domain, /case strictMode\b/);
+  assert.match(domain, /func isAvailable\(on plan: Plan\) -> Bool \{ plan == \.pro \}/);
+  const strictModeAvailable = (plan) => plan === 'pro';
+  assert.equal(strictModeAvailable('free'), false);
+  assert.equal(strictModeAvailable('pro'), true);
+
+  const state = read('../Shared/ScreenTime.swift');
+  assert.match(section(state, 'func isStrict', 'func activePending'),
+    /PaywallReason\.strictMode\.isAvailable\(on: plan\(at: now\)\) &&\s+BlockRules\.isStrict/);
+  assert.match(section(state, 'static func setStrict', 'static func startFocus'),
+    /guard !enabled \|\| PaywallReason\.strictMode\.isAvailable\(on: state\.plan\(at: now\)\)/);
+  const home = section(read('../App/ScreenPauseApp.swift'), 'private var homeForm', 'private var draft');
+  assert.match(home, /if PaywallReason\.strictMode\.isAvailable\(on: plan\) \{\s+Toggle/);
+  assert.match(home, /Button \{ paywall = \.strictMode \}/);
+  assert.doesNotMatch(home, /store\.revision/);
+});
+
+test('the paywall explains the three Pro benefits before purchase and labels the annual offer', () => {
+  const paywall = read('../App/Paywall.swift');
+  const beforePurchase = section(paywall, 'Form {', 'Button(hasTrial ?');
+  assert.ok(paywall.includes('Button(hasTrial ?'));
+  assert.match(beforePurchase, /厳格モード/);
+  assert.match(beforePurchase, /月ごとの達成カレンダー/);
+  assert.match(beforePurchase, /延びる待ち時間（最大\\\(PauseWindow\.escalationCap\)秒）/);
+  assert.match(beforePurchase, /if option == \.yearly \{\s+if demo \|\| trial \{ Text\("14日間無料"\)/);
+  assert.match(beforePurchase, /if let savings = yearlySavings \{\s+Text\("月額比/);
+  assert.match(paywall, /let savings = \(1 - yearly \/ \(monthly \* 12\)\) \* 100/);
+});
+
+test('the free hourly report compares the second day and shows this week by app and hour', () => {
+  const today = Date.UTC(2026, 10, 23);
+  const yesterday = Date.UTC(2026, 10, 22);
+  const earlyDelta = (daily, date) => {
+    const previous = new Date(date);
+    previous.setUTCDate(previous.getUTCDate() - 1);
+    return daily.has(+previous) && daily.has(date) ? daily.get(date) - daily.get(+previous) : null;
+  };
+  assert.equal(earlyDelta(new Map([[yesterday, 2400], [today, 1500]]), today), -900);
+  assert.equal(earlyDelta(new Map([[yesterday, 0], [today, 1800]]), today), 1800);
+  assert.equal(earlyDelta(new Map([[today, 1800]]), today), null);
+
+  const report = read('../Report/UsageReport.swift');
+  assert.match(section(report, 'private func earlyDelta', '\n}'),
+    /value: -1, to: today\)[\s\S]*?let previous = daily\[yesterday\], let current = daily\[today\] else \{ return nil \}\s+return current - previous/);
+  assert.match(report, /case let \.hourly\(interval\)/);
+  assert.match(report, /var appDurations: \[Application: TimeInterval\]/);
+  assert.match(report, /if day >= week \{\s+appDurations\[app\.application, default: 0\] \+= app\.totalActivityDuration/);
+  assert.match(report, /\.prefix\(5\)[\s\S]*?apps: Array\(topApps\)/);
+  assert.match(report, /Array\(repeating: TimeInterval\.zero, count: 24\)/);
+  assert.match(report, /hourly\[calendar\.component\(\.hour, from: start\)\] \+= duration/);
+  assert.match(report, /earlyDelta: earlyDelta\(daily: daily, today: today, calendar: calendar\)/);
+  const view = read('../Shared/UsageReportView.swift');
+  assert.match(view, /let apps: \[AppUsage\]\s+let hourly: \[TimeInterval\]/);
+  assert.match(view, /if let saved = summary\.saved[\s\S]*?else if let delta = summary\.earlyDelta/);
+  assert.match(view, /ForEach\(summary\.apps\.indices/);
+  assert.match(view, /ForEach\(summary\.hourly\.indices/);
+  assert.doesNotMatch(section(view, 'struct UsageReportView', 'private func duration'), /Paywall|ProAccess/);
+  const route = section(read('../App/ReportsView.swift'), 'struct ReportsView', 'struct ProgressHistoryView');
+  assert.match(route, /DeviceActivityReport\(context, filter: DeviceActivityFilter\(/);
+  assert.doesNotMatch(route, /Paywall|ProAccess/);
+});
+
+test('store copy and reviewer steps cover escalating waits and the calendar', () => {
+  const metadata = JSON.parse(read('../docs/app-store/metadata.ja.json'));
+  assert.ok(metadata.subtitle.length <= 30);
+  assert.ok(metadata.searchTerms.length >= 50 && metadata.searchTerms.length <= 100);
+  assert.ok(Buffer.byteLength(metadata.searchTerms, 'utf8') <= 100);
+  assert.match(metadata.description, /延びる待ち時間/);
+  assert.match(metadata.description, /月ごとの達成カレンダー/);
+  const notes = read('../docs/app-store/review-notes.ja.md');
+  assert.match(notes, /^7\..*10秒.*20秒になることを確認/m);
+  assert.match(notes, /^8\..*達成カレンダー.*チェックが付くことを確認/m);
+  assert.match(notes, /PauseReport拡張にはApp Groupがなく.*端末外へ送信しません/);
+  assert.doesNotMatch(read('../Report/Report.entitlements'), /com\.apple\.security\.application-groups/);
 });
 
 test('free users keep the fixed wait and see the escalating option locked with one reason', () => {

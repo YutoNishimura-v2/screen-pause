@@ -32,14 +32,17 @@ struct ReportsView: View {
 
     private var liveReport: some View {
         let calendar = Calendar.current
-        let week = UsagePeriods.monday(containing: now, calendar: calendar)
+        let today = calendar.startOfDay(for: now)
+        let week = UsagePeriods.monday(containing: today, calendar: calendar)
         let comparisonStart = baselineStart.flatMap {
             UsagePeriods.comparisonStart(baseline: $0, week: week, calendar: calendar)
         }
         let end = UsagePeriods.nextDay(after: now, calendar: calendar)
+        let yesterday = calendar.date(byAdding: .day, value: -1, to: today) ?? today
+        let start = comparisonStart ?? min(week, yesterday)
         let context: DeviceActivityReport.Context = comparisonStart == nil ? .currentUsage : .selectedUsage
         DeviceActivityReport(context, filter: DeviceActivityFilter(
-            segment: .daily(during: DateInterval(start: comparisonStart ?? week, end: end)),
+            segment: .hourly(during: DateInterval(start: start, end: end)),
             applications: selection.applicationTokens,
             categories: selection.categoryTokens
         ))
@@ -52,7 +55,8 @@ struct ReportsView: View {
         let days = minutes.enumerated().map { day, duration in
             UsageSummary.Day(date: calendar.date(byAdding: .day, value: day, to: week)!, duration: duration * 60)
         }
-        return UsageSummary(days: days, week: minutes.reduce(0, +) * 60, saved: 48 * 60)
+        return UsageSummary(days: days, week: minutes.reduce(0, +) * 60, saved: 48 * 60,
+                            earlyDelta: nil, apps: [], hourly: [])
     }
 }
 

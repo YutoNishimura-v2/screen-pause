@@ -166,8 +166,8 @@ test('zero and maximum waits enforce the exact opening and request expiry bounda
   const domain = readFileSync(new URL('../Shared/Domain.swift', import.meta.url), 'utf8');
   const range = domain.match(/static let secondsRange = (\d+)\.\.\.(\d+)/);
   assert.ok(range);
-  assert.deepEqual(range.slice(1).map(Number), [0, 30]);
-  for (const duration of [0, 30_000]) {
+  assert.deepEqual(range.slice(1).map(Number), [0, 60]);
+  for (const duration of [0, 60_000]) {
     assert.equal(canUnlock(0, duration - 1, false, duration), false);
     assert.equal(canUnlock(0, duration, false, duration), true);
     assert.equal(canUnlock(0, duration, true, duration), false);
@@ -287,7 +287,7 @@ test('a fresh report fills omitted zero-use days without inventing expired histo
   assert.match(periods, /day >= firstObserved, day <= updatedAt, daily\[day\] == nil/);
 });
 
-test('an expired or overlapping baseline falls back to a bounded current-week report', () => {
+test('an expired or overlapping baseline falls back to this week and at least yesterday', () => {
   const week = local(23);
   const comparisonStart = start =>
     start >= shiftDay(week, -35) && shiftDay(start, 7) <= week ? start : null;
@@ -298,7 +298,9 @@ test('an expired or overlapping baseline falls back to a bounded current-week re
   const app = readFileSync(new URL('../App/ReportsView.swift', import.meta.url), 'utf8');
   assert.match(periods, /value: -35, to: week/);
   assert.match(app, /comparisonStart == nil \? \.currentUsage : \.selectedUsage/);
-  assert.match(app, /DateInterval\(start: comparisonStart \?\? week, end: end\)/);
+  assert.match(app, /let yesterday = calendar\.date\(byAdding: \.day, value: -1, to: today\)/);
+  assert.match(app, /let start = comparisonStart \?\? min\(week, yesterday\)/);
+  assert.match(app, /\.hourly\(during: DateInterval\(start: start, end: end\)\)/);
 });
 
 function widgetEntries({ now, schedules, focusEnd, entitlement, progress }) {
@@ -577,6 +579,7 @@ test('the production plan gate lists only app features documented for App Review
     secondSchedule: '複数の制限予定',
     progressHistory: '開かずに戻れた回数の履歴・週比較と連続日数',
     customPause: '待ち時間と制限画面のメッセージの変更',
+    strictMode: '厳格モード',
   };
   const gated = [...gate.matchAll(/^\s*case\s+([^\r\n]+)/gm)]
     .flatMap(([, cases]) => cases.split(',').map(name => name.trim()));

@@ -124,3 +124,15 @@ Screen Time の制御、祝日・日またぎ・Pro 失効の境界整合、初�
   2. `ScreenshotTests/ScreenshotTests.swift` の AX5 テストで `ReportsView`（カレンダー含む）と `Paywall` も遷移・`isHittable` 確認対象に加える。
 - **機械判定できる合格条件**:
   - **Node ソース検査**: `App/ReportsView.swift` の `MonthCalendarView` に `.system(size: 9)` や固定 `frame(height: 36)` が含まれず、`missed` 用の非色覚アイコン（`xmark` 等）と連続日数の `.accessibilityElement(children: .combine)` が存在すること。また `ScreenshotTests/ScreenshotTests.swift` の `--screenshot-ax5` 経路が `home-report` および `home-paywall` を開くこと。
+
+## 対応
+
+1. **直した**（`Shared/Domain.swift:28`, `Shared/Domain.swift:108`, `Shared/ScreenTime.swift:80`, `App/ScreenPauseApp.swift:415`, `App/Paywall.swift:32`）。厳格モードの適用と設定をProに限定し、既存の集中時間にも同じ条件を適用した。段階延長は最大300秒、基本の設定は0〜60秒。無料体験は対象者に表示し、年額のお得度は取得した価格で計算する。
+2. **直した**（`App/ReportsView.swift:33`, `Report/UsageReport.swift:23`, `Report/UsageReport.swift:73`, `Shared/UsageReportView.swift:32`）。無料レポートに、今日の途中経過と昨日の合計との差、今週の上位5アプリと利用があった時間帯を表示する。差分の計算はレポート拡張に置き、初週との比較は従来の完了日条件で計算する。
+3. **直した**（`docs/app-store/metadata.ja.json:4`, `docs/app-store/review-notes.ja.md:19`）。検索語は55文字・UTF-8で99バイトに収めた。段階的待機と月ごとの達成カレンダーの掲載文、審査手順、レポートのデータの扱いを更新した。**見送り**（Store用画像はXcodeでの撮影・表示確認が必要。AppIconは候補の採用待ち）。項目3全体の合格条件は未達。
+4. **次回**。OS制限画面の解除可能時刻と、待機後に対象アプリへ戻る案内。
+5. **次回**。ホームを整理し、対象アプリの変更を直接開けるようにする。
+6. **次回**。初回1時間の制限と定期予定を分ける。
+7. **次回**。カレンダーの最大文字サイズと読み上げを改善し、Xcodeで確認する。
+
+Node検査は `checks/domain.test.mjs` が読み込む `checks/escalation-calendar.test.mjs:104` に追加した。待機上限、厳格モード、レポートの取得間隔と月曜の取得範囲を変更したため、対応する既存の検査条件を更新した。初回導線の固定検査と初週比較の境界検査は維持している。全件の結果はランナー待ち。購入画面と利用時間レポートの実機表示は未確認。

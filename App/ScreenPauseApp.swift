@@ -413,27 +413,32 @@ private struct SetupView: View {
                             .disabled(strict || demo)
                     }
                     Button("予定を追加") {
-                        guard store.revision > 0 else { return }
                         if !multipleSchedules {
                             paywall = .secondSchedule
                         } else {
                             editSchedule(schedules.count)
                         }
                     }
-                    .disabled(store.revision == 0 || strict || schedules.count >= ScreenTime.maximumSchedules)
+                    .disabled(strict || schedules.count >= ScreenTime.maximumSchedules)
                 }
             } header: {
                 Text("制限の予定")
             }
             Section {
-                Toggle("厳格モード", isOn: Binding(
-                    get: { snapshot.settings?.strictEnabled == true },
-                    set: { enabled in
-                        if enabled && snapshot.isBlocking(at: .now) { confirmStrict = true }
-                        else { setStrict(enabled) }
+                if PaywallReason.strictMode.isAvailable(on: plan) {
+                    Toggle("厳格モード", isOn: Binding(
+                        get: { snapshot.settings?.strictEnabled == true },
+                        set: { enabled in
+                            if enabled && snapshot.isBlocking(at: .now) { confirmStrict = true }
+                            else { setStrict(enabled) }
+                        }
+                    ))
+                    .disabled(strict || demo)
+                } else {
+                    Button { paywall = .strictMode } label: {
+                        Label("厳格モード", systemImage: "lock.fill")
                     }
-                ))
-                .disabled(strict || demo)
+                }
                 if let end = snapshot.focusEnd, now < end {
                     Text("集中時間中 · \(end.formatted(date: .omitted, time: .shortened)) まで")
                 } else {
@@ -461,7 +466,6 @@ private struct SetupView: View {
                         }
                     } else {
                         Button("回数の履歴と連続日数") { paywall = .progressHistory }
-                            .disabled(store.revision == 0)
                     }
                 }
                 if PaywallReason.customPause.isAvailable(on: plan) {
@@ -478,7 +482,6 @@ private struct SetupView: View {
                                 .foregroundStyle(.secondary)
                         }
                     }
-                    .disabled(store.revision == 0)
                     .accessibilityIdentifier("home-custom-pause-locked")
                 }
             }
