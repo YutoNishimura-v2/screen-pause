@@ -22,6 +22,7 @@ struct Paywall: View {
                     Text(headline)
                         .font(.title2.bold())
                         .accessibilityAddTraits(.isHeader)
+                    Text(reasonSummary)
                     Text("開かずに戻れた回数の履歴・週比較と連続日数")
                         .accessibilityIdentifier("paywall-progress-value")
                     Text("利用時間レポートは無料で使えます。")
@@ -58,7 +59,7 @@ struct Paywall: View {
                                 if option == .yearly {
                                     if demo || trial { Text("14日間無料").font(.footnote) }
                                     if let savings = yearlySavings {
-                                        Text("月額比 約\(savings)%お得").font(.footnote)
+                                        Text("月額比 約\(savings)%お得" + (demo ? "（仮）" : "")).font(.footnote)
                                     }
                                 }
                             }
@@ -69,7 +70,18 @@ struct Paywall: View {
                         .buttonStyle(.plain)
                         .accessibilityAddTraits(selected == option ? .isSelected : [])
                     }
-                    if !demo && loading { ProgressView("プランを読み込み中") }
+                    if !demo && loading {
+                        if availablePlans.isEmpty {
+                            ForEach(ProProduct.allCases) { option in
+                                HStack {
+                                    Text(option.title)
+                                    Spacer()
+                                    Text("価格を確認中…").foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                        ProgressView("プランを読み込み中")
+                    }
                     if !demo && !loading && products.count < ProProduct.allCases.count {
                         Button("プランを再読み込み") { Task { await load() } }
                     }
@@ -83,6 +95,7 @@ struct Paywall: View {
                         Button(hasTrial ? "14日間無料で始める" : "購入する") {
                             if let product = products[selected] { Task { await buy(product) } }
                         }
+                        .frame(maxWidth: .infinity, minHeight: 44)
                         .buttonStyle(.borderedProminent)
                         .disabled(demo || loading || busy)
                     }
@@ -118,6 +131,15 @@ struct Paywall: View {
         }
     }
 
+    private var reasonSummary: String {
+        switch reason {
+        case .secondSchedule: "曜日や時間帯ごとに複数の制限予定を使い分けられます。"
+        case .progressHistory: "開かずに戻れた回数の週比較と連続日数で変化を振り返れます。"
+        case .customPause: "待ち時間を0〜60秒や段階延長に変更し、制限画面の文も調整できます。"
+        case .strictMode: "制限中に一時解除を止め、決めた時間を最後まで守りきれます。"
+        }
+    }
+
     private func planName(_ option: ProProduct) -> some View {
         HStack {
             Image(systemName: selected == option ? "largecircle.fill.circle" : "circle")
@@ -146,21 +168,22 @@ struct Paywall: View {
         guard demo else { return "" }
         // Mirrors the local test prices in ScreenPause.storekit.
         switch option {
-        case .monthly: return "¥580／月"
-        case .yearly: return "¥4,800／年"
-        case .lifetime: return "¥7,800"
+        case .monthly: return "¥580／月（仮）"
+        case .yearly: return "¥4,800／年（仮）"
+        case .lifetime: return "¥7,800（仮）"
         }
     }
 
     private var purchaseTerms: String {
         let price = displayPrice(selected)
+        let provisional = demo ? "（デモ用の仮価格）" : ""
         let renewal = "期間終了の24時間前までに解約しない限り自動更新されます。購入確認時と更新時にApple Accountに請求されます。解約は端末のサブスクリプション設定から行えます。"
         switch selected {
-        case .monthly: return "\(price)。\(renewal)"
+        case .monthly: return "\(price)\(provisional)。\(renewal)"
         case .yearly where hasTrial:
-            return "14日間無料。その後は \(price)。無料期間終了の24時間前までに解約すれば料金はかかりません。\(renewal)"
-        case .yearly: return "\(price)。\(renewal)"
-        case .lifetime: return "\(price) の一度のお支払いで、Pro を利用できます。"
+            return "14日間無料。その後は \(price)\(provisional)。無料期間終了の24時間前までに解約すれば料金はかかりません。\(renewal)"
+        case .yearly: return "\(price)\(provisional)。\(renewal)"
+        case .lifetime: return "\(price)\(provisional) の一度のお支払いで、Pro を利用できます。"
         }
     }
 

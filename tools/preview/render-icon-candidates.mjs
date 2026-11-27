@@ -17,7 +17,7 @@ const CANDIDATES = [
   { file: 'c.svg', label: 'C' },
 ];
 
-function findChromium() {
+export function findChromium() {
   const localAppData = process.env.LOCALAPPDATA ?? '';
   const programFiles = process.env.ProgramFiles ?? 'C:\\Program Files';
   const programFilesX86 = process.env['ProgramFiles(x86)'] ?? 'C:\\Program Files (x86)';
@@ -167,4 +167,4 @@ function main() {
   console.log(`Rendered ${path.relative(rootDir, outputPath)} (${size} bytes, sha256: ${sha256})`);
 }
 
-main();
+if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) main();

@@ -31,11 +31,11 @@ App Group は `group.jp.screenpause.app`。本体・監視・表示・操作・�
 
 ## 署名・提出時の照合
 
-1. [アイコン制作要件](app-store/icon-brief.ja.md)に沿って選んだアイコンを `App/Assets.xcassets/AppIcon.appiconset` に登録し、本体の `ASSETCATALOG_COMPILER_APPICON_NAME` を `AppIcon` に設定する。
+1. [A・B・Cのアイコン候補](icon/candidates.md)から本人が選んだ案を `docs/icon/chosen.txt` に小文字1文字で記入する。Chromiumがある環境で `node tools/app-icon.mjs --write` で1024pxのAppIconを生成し、`node tools/app-icon.mjs` で照合する。空欄の間は「未選択」と表示される。
 2. MacでXcodeGenからプロジェクトを生成する。配布ターゲット6つの署名チームをそろえる。本体ターゲットのReleaseビルド設定に `SCREEN_PAUSE_LEGAL_BASE_URL` を追加し、GitHub Pagesの `legal` ディレクトリのHTTPS URL（末尾にファイル名を含めない）を指定する。自動署名で配布プロファイルを更新するか、6 IDに合う配布プロファイルを指定する。再生成した場合はチームとURLを再適用する。 [Xcodeの配布手順](https://developer.apple.com/documentation/xcode/distributing-your-app-for-beta-testing-and-releases)
 3. 実機向けにReleaseをアーカイブし、Xcode Organizerでアプリを検証する。全6バンドルのバージョン・ビルド番号・署名・`PrivacyInfo.xcprivacy` と、プライバシーレポートを確認する。既に同じ版のビルド1がアップロード済みなら `CURRENT_PROJECT_VERSION` を上げる。
 4. TestFlightまたは配布相当の実機で、起動、[審査メモのシールド操作](app-store/review-notes.ja.md)、購入・復元と実価格、両方の画面からの公開規約リンクを確認する。年額の無料体験の有無を対象アカウント別に確認する。
-5. [日本語掲載文](app-store/metadata.ja.json)と[プライバシー回答案](app-store/app-privacy.ja.md)を転記し、審査メモを添える。App Store ConnectではApple標準EULAを使用し、プライバシーポリシーURL欄に公開URLを入れる。掲載文の無料期間と最終的な商品設定を照合する。 [App Review 3.1.2](https://developer.apple.com/app-store/review/guidelines/#subscriptions)
+5. [日本語掲載文](app-store/metadata.ja.json)と[プライバシー回答案](app-store/app-privacy.ja.md)を転記し、審査メモを添える。[掲載用キャプション](app-store/screenshots.ja.md)を対応する撮影画像に載せる。App Store ConnectではApple標準EULAを使用し、プライバシーポリシーURL欄に公開URLを入れる。掲載文の無料期間と最終的な商品設定を照合する。 [App Review 3.1.2](https://developer.apple.com/app-store/review/guidelines/#subscriptions)
 
 ## App Review 4.10の対応方針（決定済み）
 

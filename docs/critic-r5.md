@@ -129,7 +129,7 @@ Screen Time の制御、祝日・日またぎ・Pro 失効の境界整合、初�
 
 1. **直した**（`Shared/Domain.swift:28`, `Shared/Domain.swift:108`, `Shared/ScreenTime.swift:80`, `App/ScreenPauseApp.swift:415`, `App/Paywall.swift:32`）。厳格モードの適用と設定をProに限定し、既存の集中時間にも同じ条件を適用した。段階延長は最大300秒、基本の設定は0〜60秒。無料体験は対象者に表示し、年額のお得度は取得した価格で計算する。
 2. **直した**（`App/ReportsView.swift:33`, `Report/UsageReport.swift:23`, `Report/UsageReport.swift:73`, `Shared/UsageReportView.swift:32`）。無料レポートに、今日の途中経過と昨日の合計との差、今週の上位5アプリと利用があった時間帯を表示する。差分の計算はレポート拡張に置き、初週との比較は従来の完了日条件で計算する。
-3. **直した**（`docs/app-store/metadata.ja.json:4`, `docs/app-store/review-notes.ja.md:19`）。検索語は55文字・UTF-8で99バイトに収めた。段階的待機と月ごとの達成カレンダーの掲載文、審査手順、レポートのデータの扱いを更新した。**見送り**（Store用画像はXcodeでの撮影・表示確認が必要。AppIconは候補の採用待ち）。項目3全体の合格条件は未達。
+3. **原稿・アイコン枠を整備**。検索語は55文字・UTF-8で99バイト。掲載文と審査メモに段階的待機・月ごとの達成カレンダーを反映済み。撮影テストの5画面に[掲載用キャプション](app-store/screenshots.ja.md)を対応付け、AppIconの1024px枠と採用案との照合を追加した。掲載画像への文字入れ・Xcodeでの確認と、本人によるアイコン選定は未実施。
 4. **次回**。OS制限画面の解除可能時刻と、待機後に対象アプリへ戻る案内。
 5. **次回**。ホームを整理し、対象アプリの変更を直接開けるようにする。
 6. **次回**。初回1時間の制限と定期予定を分ける。

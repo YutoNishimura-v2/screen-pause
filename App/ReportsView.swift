@@ -55,8 +55,18 @@ struct ReportsView: View {
         let days = minutes.enumerated().map { day, duration in
             UsageSummary.Day(date: calendar.date(byAdding: .day, value: day, to: week)!, duration: duration * 60)
         }
+        let apps = [
+            UsageSummary.AppUsage(name: "動画アプリ", duration: 42 * 60),
+            UsageSummary.AppUsage(name: "SNS", duration: 24 * 60),
+            UsageSummary.AppUsage(name: "ニュース", duration: 10 * 60),
+        ]
+        var hourly = Array(repeating: TimeInterval.zero, count: 24)
+        hourly[8] = 12 * 60
+        hourly[12] = 18 * 60
+        hourly[21] = 28 * 60
+        hourly[22] = 18 * 60
         return UsageSummary(days: days, week: minutes.reduce(0, +) * 60, saved: 48 * 60,
-                            earlyDelta: nil, apps: [], hourly: [])
+                            earlyDelta: -12 * 60, apps: apps, hourly: hourly)
     }
 }
 
@@ -74,9 +84,12 @@ struct ProgressHistoryView: View {
                 let day = schedule.activeDay(at: now, calendar: calendar) ?? now
                 let streak = progress.currentStreak(relativeTo: day, schedule: schedule, calendar: calendar)
                 Section("連続日数") {
-                    Text("\(streak)日")
-                    Text("最初の予定を一時解除せずに終えた日を数えます。")
-                        .font(.footnote).foregroundStyle(.secondary)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("\(streak)日")
+                        Text("最初の予定を一時解除せずに終えた日を数えます。")
+                            .font(.footnote).foregroundStyle(.secondary)
+                    }
+                    .accessibilityElement(children: .combine)
                 }
                 Section("月ごとの記録") {
                     let grid = progress.monthCalendar(for: displayedMonth ?? now, calendar: calendar)
@@ -150,14 +163,14 @@ private struct MonthCalendarView: View {
                     Text(weekdayHeaders[index]).font(.caption).foregroundStyle(.secondary)
                 }
                 ForEach(0..<grid.leadingEmptyDays, id: \.self) { _ in
-                    Color.clear.frame(height: 36)
+                    Color.clear.frame(minHeight: 44)
                 }
                 ForEach(grid.days) { day in
                     dayCell(day)
                 }
             }
 
-            Text("✓は守れた日、枠は守れなかった日です。記録はこの端末だけに保存します。")
+            Text("✓は守れた日、×は守れなかった日です。記録はこの端末だけに保存します。")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -173,16 +186,24 @@ private struct MonthCalendarView: View {
         case .missed: status = "守れなかった日"
         case .noSchedule: status = "予定なし"
         }
-        return VStack(spacing: 0) {
+        return VStack(spacing: 2) {
             Text("\(day.dayNumber)")
                 .font(.caption.weight(day.status == .kept ? .semibold : .regular))
                 .monospacedDigit()
-            Image(systemName: "checkmark")
-                .font(.system(size: 9, weight: .bold))
-                .opacity(day.status == .kept ? 1 : 0)
+            Group {
+                switch day.status {
+                case .kept:
+                    Image(systemName: "checkmark")
+                case .missed:
+                    Image(systemName: "xmark")
+                case .noSchedule:
+                    Image(systemName: "checkmark").opacity(0)
+                }
+            }
+            .font(.caption2.weight(.bold))
         }
         .foregroundStyle(day.status == .noSchedule ? Color.secondary : Color.primary)
-        .frame(maxWidth: .infinity, minHeight: 36)
+        .frame(maxWidth: .infinity, minHeight: 44)
         .background {
             RoundedRectangle(cornerRadius: 6)
                 .fill(day.status == .kept ? Color(uiColor: ShieldAppearance.tint).opacity(0.18) : .clear)
