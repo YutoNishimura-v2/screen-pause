@@ -1,0 +1,133 @@
+name: 画面の撮影
+
+on:
+  workflow_dispatch:
+  push:
+    branches-ignore: [ci-shots]
+    paths:
+      - 'App/**'
+      - 'Shared/**'
+      - 'Shield/**'
+      - 'Action/**'
+      - 'Monitor/**'
+      - 'Report/**'
+      - 'Widgets/**'
+      - 'ScreenshotTests/**'
+      - 'project.yml'
+      - 'ScreenPause.entitlements'
+      - 'ScreenPause.storekit'
+      - '.github/workflows/screenshots.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: screenshots-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  screenshots:
+    if: github.ref_name == github.event.repository.default_branch && github.ref_type == 'branch'
+    runs-on: macos-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: プロジェクトを生成
+        run: |
+          if ! command -v xcodegen >/dev/null; then
+            HOMEBREW_NO_AUTO_UPDATE=1 brew install xcodegen
+          fi
+          xcodegen generate
+
+      - name: iPhone シミュレータで撮影
+        run: |
+          sim=$(xcrun simctl list devices available --json | python3 -c '
+          import json, sys
+          devices = json.load(sys.stdin)["devices"]
+          for runtime in sorted(devices, key=lambda r: [int(x) for x in r.split("iOS-")[-1].split("-")] if "iOS-" in r else [], reverse=True):
+              for device in devices[runtime]:
+                  if runtime.startswith("com.apple.CoreSimulator.SimRuntime.iOS-") and device["name"].startswith("iPhone "):
+                      print(device["udid"])
+                      sys.exit(0)
+          sys.exit("No available iPhone simulator")
+          ')
+          xcrun simctl bootstatus "$sim" -b
+          xcrun simctl status_bar "$sim" override --time '9:41' --dataNetwork wifi \
+            --wifiMode active --wifiBars 3 --cellularMode active --cellularBars 4 \
+            --batteryState unplugged --batteryLevel 100
+          xcodebuild test -project ScreenPause.xcodeproj -scheme ScreenPauseScreenshots \
+            -destination "platform=iOS Simulator,id=$sim" -parallel-testing-enabled NO \
+            -test-timeouts-enabled YES -maximum-test-execution-time-allowance 120 \
+            -derivedDataPath "$RUNNER_TEMP/screenshot-build" \
+            -resultBundlePath "$RUNNER_TEMP/screenshots.xcresult" CODE_SIGNING_ALLOWED=NO
+
+      - name: 14枚を確認して目次を生成
+        run: |
+          xcrun xcresulttool export attachments \
+            --path "$RUNNER_TEMP/screenshots.xcresult" --output-path "$RUNNER_TEMP/attachments"
+          python3 - <<'PY'
+          import json
+          import os
+          import shutil
+          from pathlib import Path
+
+          directory = Path(os.environ["RUNNER_TEMP"])
+          attachments = directory / "attachments"
+          publish = directory / "publish"
+          publish.mkdir()
+          manifest = json.loads((attachments / "manifest.json").read_text(encoding="utf-8"))
+          screens = {
+              "01-onboarding-permission": "オンボーディング 1・許可",
+              "02-onboarding-apps": "オンボーディング 2・アプリ",
+              "04-home": "ホーム",
+              "05-shield-preview": "制限画面のプレビュー",
+              "06-report": "利用時間レポート",
+              "07-paywall": "購入画面",
+              "08-paywall-value": "Proで振り返れること",
+          }
+          index = [
+              "# ひと呼吸の画面", "",
+              "デモデータを使用。制限画面はアプリ内プレビューです。", "",
+              "| 画面 | ライト | ダーク |", "| --- | --- | --- |",
+          ]
+          for screen, label in screens.items():
+              cells = []
+              for appearance in ("light", "dark"):
+                  name = f"{appearance}-{screen}"
+                  matches = [
+                      item["exportedFileName"] for test in manifest for item in test["attachments"]
+                      if item.get("suggestedHumanReadableName", "").startswith(name)
+                      and item["exportedFileName"].endswith(".png")
+                  ]
+                  if len(matches) != 1 or Path(matches[0]).name != matches[0]:
+                      raise SystemExit(f"Expected exactly one PNG for {name}: {matches}")
+                  source = attachments / matches[0]
+                  with source.open("rb") as image:
+                      if image.read(8) != b"\x89PNG\r\n\x1a\n":
+                          raise SystemExit(f"Invalid PNG: {name}")
+                  shutil.copyfile(source, publish / f"{name}.png")
+                  cells.append(f"![{label}]({name}.png)")
+              index.append(f"| {label} | {' | '.join(cells)} |")
+          (publish / "index.md").write_text("\n".join(index) + "\n", encoding="utf-8")
+          PY
+
+      - name: 撮影画像を公開
+        working-directory: ${{ runner.temp }}/publish
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git init --initial-branch=ci-shots
+          git add -- ./*.png index.md
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+            commit -m "Screenshots for $GITHUB_SHA"
+          auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 | tr -d '\r\n')
+          echo "::add-mask::$auth"
+          GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=http.extraheader \
+            GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $auth" \
+            git push --force "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git" HEAD:refs/heads/ci-shots
