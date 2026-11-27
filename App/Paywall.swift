@@ -28,7 +28,6 @@ struct Paywall: View {
                     Text("利用時間レポートは無料で使えます。")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
-                    if demo { Text("デモ価格（仮の値）").foregroundStyle(.secondary) }
                 }
                 Section("Pro でできること") {
                     Text("厳格モードで制限中の一時解除を止める")
@@ -59,7 +58,7 @@ struct Paywall: View {
                                 if option == .yearly {
                                     if demo || trial { Text("14日間無料").font(.footnote) }
                                     if let savings = yearlySavings {
-                                        Text("月額比 約\(savings)%お得" + (demo ? "（仮）" : "")).font(.footnote)
+                                        Text("月額比 約\(savings)%お得").font(.footnote)
                                     }
                                 }
                             }
@@ -151,8 +150,9 @@ struct Paywall: View {
     private var hasTrial: Bool { selected == .yearly && (demo || trial) }
 
     private var yearlySavings: Int? {
-        if demo { return 31 }
-        guard let monthly = products[.monthly]?.price, let yearly = products[.yearly]?.price,
+        let monthly = products[.monthly]?.price ?? (demo ? Decimal(ProProduct.monthly.jpyPrice) : nil)
+        let yearly = products[.yearly]?.price ?? (demo ? Decimal(ProProduct.yearly.jpyPrice) : nil)
+        guard let monthly, let yearly,
               monthly > 0, yearly < monthly * 12 else { return nil }
         let savings = (1 - yearly / (monthly * 12)) * 100
         let percent = Int(NSDecimalNumber(decimal: savings).doubleValue.rounded())
@@ -166,24 +166,17 @@ struct Paywall: View {
     private func displayPrice(_ option: ProProduct) -> String {
         if let product = products[option] { return option.price(product) }
         guard demo else { return "" }
-        // Mirrors the local test prices in ScreenPause.storekit.
-        switch option {
-        case .monthly: return "¥580／月（仮）"
-        case .yearly: return "¥4,800／年（仮）"
-        case .lifetime: return "¥7,800（仮）"
-        }
+        return option.confirmedDisplayPrice
     }
 
     private var purchaseTerms: String {
         let price = displayPrice(selected)
-        let provisional = demo ? "（デモ用の仮価格）" : ""
         let renewal = "期間終了の24時間前までに解約しない限り自動更新されます。購入確認時と更新時にApple Accountに請求されます。解約は端末のサブスクリプション設定から行えます。"
         switch selected {
-        case .monthly: return "\(price)\(provisional)。\(renewal)"
+        case .monthly: return "\(price)。\(renewal)"
         case .yearly where hasTrial:
-            return "14日間無料。その後は \(price)\(provisional)。無料期間終了の24時間前までに解約すれば料金はかかりません。\(renewal)"
-        case .yearly: return "\(price)\(provisional)。\(renewal)"
-        case .lifetime: return "\(price)\(provisional) の一度のお支払いで、Pro を利用できます。"
+            return "14日間無料。その後は \(price)。無料期間終了の24時間前までに解約すれば料金はかかりません。\(renewal)"
+        case .yearly: return "\(price)。\(renewal)"
         }
     }
 

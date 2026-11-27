@@ -189,7 +189,7 @@ test('terms include Pro strict mode and monthly calendar', () => {
   assert.match(proSection, /月ごとの達成カレンダー/);
 });
 
-test('strict migration notice, reason-aware paywall, and provisional price tags are wired', () => {
+test('strict migration notice, reason-aware paywall, and confirmed subscription prices are wired', () => {
   const needsMigration = (strictEnabled, plan) => strictEnabled === true && plan === 'free';
   assert.equal(needsMigration(true, 'free'), true);
   assert.equal(needsMigration(true, 'pro'), false);
@@ -205,10 +205,18 @@ test('strict migration notice, reason-aware paywall, and provisional price tags 
   for (const reason of ['secondSchedule', 'progressHistory', 'customPause', 'strictMode']) {
     assert.match(paywall, new RegExp(`case \\.${reason}:`));
   }
-  assert.match(paywall, /¥580／月（仮）/);
-  assert.match(paywall, /¥4,800／年（仮）/);
-  assert.match(paywall, /¥7,800（仮）/);
-  assert.match(paywall, /（デモ用の仮価格）/);
+  const proStore = read('../App/ProStore.swift');
+  assert.match(proStore, /case \.monthly: 600\s+case \.yearly: 4800/);
+  assert.match(paywall, /option\.confirmedDisplayPrice/);
+  assert.match(paywall, /ProProduct\.monthly\.jpyPrice/);
+  assert.match(paywall, /ProProduct\.yearly\.jpyPrice/);
+  assert.doesNotMatch(paywall, /仮|¥580|¥7,800|lifetime|買い切り/);
+  assert.equal(Math.round((1 - 4800 / (600 * 12)) * 100), 33);
+  const paywallPreview = read('../tools/preview/paywall.html');
+  assert.match(paywallPreview, /¥600／月/);
+  assert.match(paywallPreview, /¥4,800／年/);
+  assert.match(paywallPreview, /月額比 約33%お得/);
+  assert.doesNotMatch(paywallPreview, /仮|¥580|¥7,800|31%|買い切り/);
   assert.match(paywall, /\.frame\(maxWidth: \.infinity, minHeight: 44\)/);
   assert.match(paywall, /if availablePlans\.isEmpty \{[\s\S]*価格を確認中…/);
 });

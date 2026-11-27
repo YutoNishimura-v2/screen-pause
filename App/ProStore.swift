@@ -6,7 +6,6 @@ import StoreKit
 enum ProProduct: String, CaseIterable, Identifiable {
     case monthly = "jp.screenpause.app.pro.monthly"
     case yearly = "jp.screenpause.app.pro.yearly"
-    case lifetime = "jp.screenpause.app.pro.lifetime"
 
     var id: String { rawValue }
 
@@ -14,7 +13,21 @@ enum ProProduct: String, CaseIterable, Identifiable {
         switch self {
         case .monthly: "月額"
         case .yearly: "年額"
-        case .lifetime: "買い切り"
+        }
+    }
+
+    var jpyPrice: Int {
+        switch self {
+        case .monthly: 600
+        case .yearly: 4800
+        }
+    }
+
+    var confirmedDisplayPrice: String {
+        let amount = jpyPrice.formatted(.number.locale(Locale(identifier: "ja_JP")))
+        switch self {
+        case .monthly: return "¥\(amount)／月"
+        case .yearly: return "¥\(amount)／年"
         }
     }
 
@@ -22,7 +35,6 @@ enum ProProduct: String, CaseIterable, Identifiable {
         switch self {
         case .monthly: "\(product.displayPrice)／月"
         case .yearly: "\(product.displayPrice)／年"
-        case .lifetime: product.displayPrice
         }
     }
 
@@ -61,12 +73,8 @@ final class ProStore {
         var access: ProAccess?
         for await result in Transaction.currentEntitlements {
             guard case .verified(let transaction) = result,
-                  let product = ProProduct(rawValue: transaction.productID),
+                  ProProduct(rawValue: transaction.productID) != nil,
                   transaction.revocationDate == nil, !transaction.isUpgraded else { continue }
-            if product == .lifetime {
-                access = ProAccess(expires: nil, willAutoRenew: nil)
-                break
-            }
             if let subscription = await subscriptionAccess(for: transaction),
                let end = subscription.projectedEnd, end > (access?.projectedEnd ?? .distantPast) {
                 access = subscription

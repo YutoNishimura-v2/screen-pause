@@ -742,22 +742,31 @@ test('paywall and settings expose the same published and bundled legal documents
   }
 });
 
-test('local StoreKit products match the runtime IDs and mark the test prices', () => {
+test('local StoreKit products match the runtime IDs and confirmed JPY prices', () => {
   const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8');
   const config = JSON.parse(read('../ScreenPause.storekit'));
   const [group] = config.subscriptionGroups;
+  assert.equal(config.products.length, 0);
+  assert.equal(group.subscriptions.length, 2);
   const [monthly, yearly] = group.subscriptions;
-  const [lifetime] = config.products;
-  const ids = Array.from(read('../App/ProStore.swift').matchAll(/case (?:monthly|yearly|lifetime) = "([^"]+)"/g),
+  const storeSource = read('../App/ProStore.swift');
+  assert.doesNotMatch(storeSource, /lifetime|買い切り/);
+  const ids = Array.from(storeSource.matchAll(/case (?:monthly|yearly) = "([^"]+)"/g),
     (match) => match[1]);
-  assert.deepEqual(ids, [monthly.productID, yearly.productID, lifetime.productID]);
-  for (const [product, min, max] of [[monthly, 300, 980], [yearly, 2400, 7800], [lifetime, 4800, 9800]]) {
-    assert.match(product.referenceName, /仮の値/);
-    assert.ok(Number(product.displayPrice) >= min && Number(product.displayPrice) <= max);
+  assert.deepEqual(ids, [monthly.productID, yearly.productID]);
+  assert.equal(config.settings._storefront, 'JPN');
+  assert.equal(config.settings._locale, 'ja_JP');
+  assert.equal(Number(monthly.displayPrice), 600);
+  assert.equal(Number(yearly.displayPrice), 4800);
+  assert.match(storeSource, /case \.monthly: 600\s+case \.yearly: 4800/);
+  for (const product of [monthly, yearly]) {
+    assert.doesNotMatch(product.referenceName, /仮|provisional|TBD/i);
+    for (const loc of product.localizations) {
+      assert.doesNotMatch(loc.description, /仮|provisional|TBD/i);
+    }
   }
   assert.equal(monthly.recurringSubscriptionPeriod, 'P1M');
   assert.equal(yearly.recurringSubscriptionPeriod, 'P1Y');
   assert.equal(yearly.introductoryOffer.subscriptionPeriod, 'P2W');
   assert.equal(yearly.introductoryOffer.paymentMode, 'free');
-  assert.equal(lifetime.type, 'NonConsumable');
 });
