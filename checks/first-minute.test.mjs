@@ -28,11 +28,23 @@ test('permission recovery shows Settings only for denied or revoked access', () 
 test('first save failure stays in the picker with its selection and retry feedback', () => {
   const picker = section(app, 'private var appPicker:', 'private func setupHeading');
   assert.match(picker, /if let pickerSaveError \{\s+Text\(pickerSaveError\)/);
-  assert.match(picker, /selection = pickerSelection\s+if step == \.permission \{\s+pickerSaveError = nil\s+save\(\)\s+guard step == \.home else \{ return \}\s+\}\s+picker = false/);
+  assert.match(picker, /selection = pickerSelection\s+if step == \.permission \|\| step == \.home \{\s+pickerSaveError = nil\s+save\(\)\s+guard pickerSaveError == nil, step == \.home else \{ return \}\s+\}\s+picker = false/);
   const save = section(app, 'private func save()', 'private var demoStart');
-  assert.match(save, /step = \.home\s+\} catch \{\s+if step == \.permission, picker \{\s+pickerSaveError = needsAppReselection\s+\? "元の予定で制限を再開できませんでした。もう一度お試しください。"\s+: "制限を設定できませんでした。もう一度お試しください。"\s+\} else \{/);
+  assert.match(save, /step = \.home\s+\} catch \{\s+if \(step == \.permission \|\| step == \.home\), picker \{\s+pickerSaveError = needsAppReselection\s+\? "元の予定で制限を再開できませんでした。もう一度お試しください。"\s+: "制限を設定できませんでした。もう一度お試しください。"\s+\} else \{/);
   const open = section(app, 'private func openPicker()', 'private var appPicker:');
-  assert.match(open, /pickerSaveError = nil\s+pickerSelection = selection\s+picker = true/);
+  assert.match(open, /if step == \.home, let saved = snapshot\.settings\?\.selection \{\s+selection = saved\s+\}\s+pickerSaveError = nil\s+pickerSelection = selection\s+picker = true/);
+});
+
+test('home app picker loads saved selection, labels confirm action, and persists via save()', () => {
+  const open = section(app, 'private func openPicker()', 'private var appPicker:');
+  assert.match(open, /if step == \.home, let saved = snapshot\.settings\?\.selection \{\s+selection = saved\s+\}/);
+  const title = section(app, 'private var pickerActionTitle:', 'private func confirmApps()');
+  assert.match(title, /if step == \.schedule \|\| step == \.home \{ return "選択を反映" \}/);
+  const confirm = section(app, 'private func confirmApps()', 'private func setupHeading');
+  assert.match(confirm, /step == \.permission \|\| step == \.home[\s\S]*save\(\)[\s\S]*pickerSaveError == nil/);
+  const save = section(app, 'private func save()', 'private var demoStart');
+  assert.match(save, /\(step == \.permission \|\| step == \.home\), picker/);
+  assert.match(save, /try ScreenTime\.install\(settings/);
 });
 
 test('an active limit gives a zero-count user the real first-stop action', () => {
@@ -109,8 +121,94 @@ test('overnight schedules identify the end day in both the list and the editor',
 test('the home return cue shows the earliest future start among enabled schedules', () => {
   const home = section(app, 'private var homeForm:', 'private var draft:');
   const schedule = section(read('../Shared/Domain.swift'), 'func nextStart', 'func previousDay');
-  assert.match(home, /let schedules = multipleSchedules \? settings\.schedules : \[settings\.schedule\]\s+if blocking \{\s+Text\("制限中"\)\s+\} else if let next = schedules\.compactMap\(\{\s+\$0\.nextStart\(after: now, calendar: calendar\)\s+\}\)\.min\(\) \{\s+LabeledContent\("次の制限開始", value: next\.formatted/);
+  assert.match(home, /let schedules = multipleSchedules \? settings\.schedules : \[settings\.schedule\]\s+if blocking \{\s+if let until = snapshot\.blockingUntil\(at: now, calendar: calendar\)[\s\S]*?LabeledContent\("制限中", value:[\s\S]*?\} else if let next = schedules\.compactMap\(\{\s+\$0\.nextStart\(after: now, calendar: calendar\)\s+\}\)\.min\(\) \{\s+LabeledContent\("次の制限開始", value: next\.formatted/);
   assert.match(schedule, /guard isValid else \{ return nil \}\s+return weekdays\.flatMap \{ weekday in/);
   assert.match(schedule, /DateComponents\(hour: start \/ 60, minute: start % 60, second: 0, weekday: weekday\)/);
   assert.match(schedule, /calendar\.nextDate\(after: now, matching: time, matchingPolicy: \.strict,\s+repeatedTimePolicy: occurrence\)[\s\S]+?\}\.min\(\)/);
+});
+
+test('home has at most three sections, shows block end time, and moves secondary settings', () => {
+  const home = section(app, 'private var homeForm:', 'private var draft:');
+  const sections = home.match(/^\s*Section\b/gm) ?? [];
+  assert.ok(sections.length <= 3, `expected <= 3 sections in homeForm, got ${sections.length}`);
+  assert.doesNotMatch(home, /snapshot\.baselineStart\b.*\n.*利用時間はスクリーンタイム/);
+  assert.match(home, /blockingUntil\(at: now, calendar: calendar\)/);
+  assert.match(home, /LabeledContent\("制限中", value: "[^"]*まで（あと\\\(remaining\)分）"\)/);
+  assert.match(home, /Button\("制限するアプリを選ぶ", action: openPicker\)/);
+  assert.doesNotMatch(home, /scheduleLabel\(/);
+  assert.doesNotMatch(home, /CustomPauseView\(/);
+
+  const settings = app.slice(app.indexOf('private var settingsView:'));
+  assert.match(settings, /scheduleLabel\(schedules\[index\]\)/);
+  assert.match(settings, /CustomPauseView\(/);
+  assert.match(settings, /LegalLinks\(\)/);
+  assert.match(settings, /\.navigationTitle\("設定"\)/);
+  assert.match(app, /confirmRemoveSchedule = true/);
+  assert.match(app, /\.confirmationDialog\("この予定を削除しますか？"/);
+
+  const local = (day, hour = 0, minute = 0) => new Date(2026, 10, day, hour, minute);
+  const shiftDay = (date, days) => new Date(date.getFullYear(), date.getMonth(), date.getDate() + days);
+  const activeDay = (schedule, now) => {
+    const minute = now.getHours() * 60 + now.getMinutes();
+    let day;
+    if (schedule.start < schedule.end) {
+      if (minute < schedule.start || minute >= schedule.end) return null;
+      day = shiftDay(now, 0);
+    } else if (minute >= schedule.start) {
+      day = shiftDay(now, 0);
+    } else {
+      if (minute >= schedule.end) return null;
+      day = shiftDay(now, -1);
+    }
+    return schedule.days.includes(day.getDay() + 1) ? day : null;
+  };
+  const activeEnd = (schedule, now) => {
+    const startDay = activeDay(schedule, now);
+    if (!startDay) return null;
+    const endDay = schedule.start < schedule.end ? startDay : shiftDay(startDay, 1);
+    return new Date(endDay.getFullYear(), endDay.getMonth(), endDay.getDate(),
+      Math.floor(schedule.end / 60), schedule.end % 60, 0);
+  };
+  const blockingUntil = (schedules, focusEnd, now) => {
+    const ends = schedules.map((s) => activeEnd(s, now)).filter(Boolean).map((d) => +d);
+    if (focusEnd != null && +focusEnd > +now) ends.push(+focusEnd);
+    return ends.length ? new Date(Math.max(...ends)) : null;
+  };
+  const monday = { days: [2], start: 540, end: 600 };
+  assert.deepEqual(blockingUntil([monday], null, local(2, 9, 42)), local(2, 10, 0));
+  const overnight = { days: [7], start: 1380, end: 60 };
+  assert.deepEqual(blockingUntil([overnight], null, local(8, 0, 30)), local(8, 1, 0));
+  assert.deepEqual(blockingUntil([monday], local(2, 10, 30), local(2, 9, 42)), local(2, 10, 30));
+  assert.equal(blockingUntil([monday], null, local(2, 10, 0)), null);
+});
+
+test('terms include Pro strict mode and monthly calendar', () => {
+  const terms = read('../docs/legal/terms.md');
+  const proSection = terms.split('## Proの購入')[1].split('## 自動更新と無料体験')[0];
+  assert.match(proSection, /厳格モード/);
+  assert.match(proSection, /月ごとの達成カレンダー/);
+});
+
+test('strict migration notice, reason-aware paywall, and provisional price tags are wired', () => {
+  const needsMigration = (strictEnabled, plan) => strictEnabled === true && plan === 'free';
+  assert.equal(needsMigration(true, 'free'), true);
+  assert.equal(needsMigration(true, 'pro'), false);
+  assert.equal(needsMigration(false, 'free'), false);
+
+  const state = read('../Shared/ScreenTime.swift');
+  assert.match(state, /func needsStrictMigrationNotice\(at now: Date\) -> Bool \{\s+settings\?\.strictEnabled == true && !PaywallReason\.strictMode\.isAvailable\(on: plan\(at: now\)\)/);
+  assert.match(app, /snapshot\.needsStrictMigrationNotice\(at: now\)/);
+  assert.match(app, /home-strict-migration-notice/);
+  assert.match(app, /Button\("確認した"\) \{ setStrict\(false\) \}/);
+
+  assert.match(paywall, /private var reasonSummary: String/);
+  for (const reason of ['secondSchedule', 'progressHistory', 'customPause', 'strictMode']) {
+    assert.match(paywall, new RegExp(`case \\.${reason}:`));
+  }
+  assert.match(paywall, /¥580／月（仮）/);
+  assert.match(paywall, /¥4,800／年（仮）/);
+  assert.match(paywall, /¥7,800（仮）/);
+  assert.match(paywall, /（デモ用の仮価格）/);
+  assert.match(paywall, /\.frame\(maxWidth: \.infinity, minHeight: 44\)/);
+  assert.match(paywall, /if availablePlans\.isEmpty \{[\s\S]*価格を確認中…/);
 });

@@ -16,10 +16,12 @@ struct UsageScene: DeviceActivityReportScene {
 
     func makeConfiguration(representing results: DeviceActivityResults<DeviceActivityData>) async -> UsageSummary {
         let calendar = Calendar.current
-        let today = calendar.startOfDay(for: .now)
+        let now = Date.now
+        let today = calendar.startOfDay(for: now)
         let week = UsagePeriods.monday(containing: today, calendar: calendar)
         var baseline: Date?
         var daily: [Date: TimeInterval] = [:]
+        var hourlyByDay: [Date: [Int: TimeInterval]] = [:]
         var appDurations: [Application: TimeInterval] = [:]
         var hourly = Array(repeating: TimeInterval.zero, count: 24)
         for await data in results {
@@ -41,8 +43,10 @@ struct UsageScene: DeviceActivityReportScene {
                     }
                 }
                 deviceDays[day, default: 0] += duration
+                let hour = calendar.component(.hour, from: start)
+                hourlyByDay[day, default: [:]][hour, default: 0] += duration
                 if day >= week {
-                    hourly[calendar.component(.hour, from: start)] += duration
+                    hourly[hour] += duration
                 }
             }
             UsagePeriods.fillZeroDays(&deviceDays, in: interval, updatedAt: data.lastUpdatedDate, calendar: calendar)
@@ -62,19 +66,19 @@ struct UsageScene: DeviceActivityReportScene {
             days: days,
             week: durations.count == days.count ? durations.reduce(0, +) : nil,
             saved: baseline.flatMap {
-                UsagePeriods.savedTime(daily: daily, baseline: $0, week: week, today: today, calendar: calendar)
+                UsagePeriods.flexibleSavedTime(
+                    daily: daily, hourlyByDay: hourlyByDay, baseline: $0, week: week, now: now, calendar: calendar
+                )
             },
-            earlyDelta: earlyDelta(daily: daily, today: today, calendar: calendar),
+            earlyDelta: earlyDelta(daily: daily, hourlyByDay: hourlyByDay, now: now, calendar: calendar),
             apps: Array(topApps),
             hourly: hourly
         )
     }
 
     private func earlyDelta(
-        daily: [Date: TimeInterval], today: Date, calendar: Calendar
+        daily: [Date: TimeInterval], hourlyByDay: [Date: [Int: TimeInterval]], now: Date, calendar: Calendar
     ) -> TimeInterval? {
-        guard let yesterday = calendar.date(byAdding: .day, value: -1, to: today),
-              let previous = daily[yesterday], let current = daily[today] else { return nil }
-        return current - previous
+        UsagePeriods.sameHourDelta(daily: daily, hourlyByDay: hourlyByDay, now: now, calendar: calendar)
     }
 }

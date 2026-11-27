@@ -100,6 +100,8 @@ private struct SetupView: View {
     @State private var paywall: PaywallReason?
     @State private var store = ProStore()
     @State private var confirmStrict = false
+    @State private var confirmRemoveSchedule = false
+    @State private var showSettings = false
     @State private var askingPermission = false
     @State private var snapshot = SharedState()
     @State private var errorMessage: String?
@@ -129,13 +131,15 @@ private struct SetupView: View {
             .navigationTitle(title)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    NavigationLink {
-                        Form { LegalLinks() }
-                            .navigationTitle("設定")
+                    Button {
+                        showSettings = true
                     } label: {
                         Label("設定", systemImage: "gearshape")
                     }
                 }
+            }
+            .navigationDestination(isPresented: $showSettings) {
+                settingsView
             }
         }
         .id(permissionIssue != nil)
@@ -148,6 +152,10 @@ private struct SetupView: View {
             Button("キャンセル", role: .cancel) {}
         } message: {
             Text("いまの制限が終わるまで、一時解除や制限の変更ができなくなります。")
+        }
+        .confirmationDialog("この予定を削除しますか？", isPresented: $confirmRemoveSchedule, titleVisibility: .visible) {
+            Button("削除する", role: .destructive, action: removeSchedule)
+            Button("キャンセル", role: .cancel) {}
         }
         .task { if !demo { await store.listen() } }
         .onChange(of: store.revision) {
@@ -220,6 +228,9 @@ private struct SetupView: View {
     }
 
     private func openPicker() {
+        if step == .home, let saved = snapshot.settings?.selection {
+            selection = saved
+        }
         pickerSaveError = nil
         pickerSelection = selection
         picker = true
@@ -264,16 +275,16 @@ private struct SetupView: View {
     }
 
     private var pickerActionTitle: String {
-        if step == .schedule { return "選択を反映" }
+        if step == .schedule || step == .home { return "選択を反映" }
         return needsAppReselection ? "元の予定を再開" : "今から1時間の制限を始める"
     }
 
     private func confirmApps() {
         selection = pickerSelection
-        if step == .permission {
+        if step == .permission || step == .home {
             pickerSaveError = nil
             save()
-            guard step == .home else { return }
+            guard pickerSaveError == nil, step == .home else { return }
         }
         picker = false
     }
@@ -321,7 +332,7 @@ private struct SetupView: View {
                     refresh()
                 }
                 if scheduleIndex > 0, scheduleIndex < (snapshot.settings?.schedules.count ?? 0) {
-                    Button("この予定を削除", role: .destructive, action: removeSchedule)
+                    Button("この予定を削除", role: .destructive) { confirmRemoveSchedule = true }
                 }
             }
         }
@@ -338,33 +349,33 @@ private struct SetupView: View {
             : "制限中に「\(ShieldAppearance.primary)」で1回。"
 
         return Group {
-            // Shield extensions cannot run timers, so the app renders the live countdown
-            // for a pending unlock requested from the shield.
-            if let pending = snapshot.activePending(at: now, calendar: calendar) {
-                Section("一時解除の待ち時間") {
-                    if snapshot.configuredPause(at: now).isEscalating {
-                        Text(ShieldAppearance.attemptWaitLabel(
-                            attempt: snapshot.progress.unlockCount(at: now, calendar: calendar) + 1,
-                            seconds: Int(pending.wait)
-                        ))
-                        .font(.subheadline.weight(.medium))
-                    }
-                    TimelineView(.periodic(from: pending.date, by: 1)) { context in
-                        if snapshot.activePending(at: context.date, calendar: calendar) == pending {
-                            Text(ShieldAppearance.waitStatus(remainingSeconds: PauseWindow.remainingSeconds(
-                                requestedAt: pending.date, now: context.date, wait: pending.wait
-                            )))
-                            .foregroundStyle(.secondary)
-                            .monospacedDigit()
-                        } else {
-                            Text("待機時間が終了しました。制限画面からやり直せます。")
+            Section {
+                // Shield extensions cannot run timers, so the app renders the live countdown
+                // for a pending unlock requested from the shield.
+                if let pending = snapshot.activePending(at: now, calendar: calendar) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        if snapshot.configuredPause(at: now).isEscalating {
+                            Text(ShieldAppearance.attemptWaitLabel(
+                                attempt: snapshot.progress.unlockCount(at: now, calendar: calendar) + 1,
+                                seconds: Int(pending.wait)
+                            ))
+                            .font(.subheadline.weight(.medium))
+                        }
+                        TimelineView(.periodic(from: pending.date, by: 1)) { context in
+                            if snapshot.activePending(at: context.date, calendar: calendar) == pending {
+                                Text(ShieldAppearance.waitStatus(remainingSeconds: PauseWindow.remainingSeconds(
+                                    requestedAt: pending.date, now: context.date, wait: pending.wait
+                                )))
                                 .foregroundStyle(.secondary)
+                                .monospacedDigit()
+                            } else {
+                                Text("待機時間が終了しました。対象アプリを開いてやり直せます。")
+                                    .foregroundStyle(.secondary)
+                            }
                         }
                     }
+                    .accessibilityIdentifier("home-pending-wait")
                 }
-                .accessibilityIdentifier("home-pending-wait")
-            }
-            Section {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("今日、開かずに戻れた回数").font(.headline)
                         .accessibilityAddTraits(.isHeader)
@@ -380,25 +391,16 @@ private struct SetupView: View {
                 .accessibilityLabel("今日、開かずに戻れた回数、\(count)回")
                 .accessibilityHint(count == 0 ? countDetail : "")
                 .accessibilityIdentifier("home-count")
-                if let baseline = snapshot.baselineStart, now < baseline {
-                    Text("利用時間はスクリーンタイムに記録されると表示されます。")
-                        .foregroundStyle(.secondary)
-                }
-                if demo {
-                    NavigationLink("制限画面のプレビュー") {
-                        ShieldDemoView(count: count) {
-                            snapshot.progress.giveUp(at: now, calendar: .current)
-                        }
-                    }
-                    .accessibilityIdentifier("home-shield")
-                }
-            }
-            Section {
                 if let settings = snapshot.settings {
                     let multipleSchedules = PaywallReason.secondSchedule.isAvailable(on: plan)
                     let schedules = multipleSchedules ? settings.schedules : [settings.schedule]
                     if blocking {
-                        Text("制限中")
+                        if let until = snapshot.blockingUntil(at: now, calendar: calendar) {
+                            let remaining = max(1, Int(ceil(until.timeIntervalSince(now) / 60)))
+                            LabeledContent("制限中", value: "\(until.formatted(date: .omitted, time: .shortened)) まで（あと\(remaining)分）")
+                        } else {
+                            Text("制限中")
+                        }
                     } else if let next = schedules.compactMap({
                         $0.nextStart(after: now, calendar: calendar)
                     }).min() {
@@ -408,23 +410,27 @@ private struct SetupView: View {
                     } else {
                         Text("次の制限を待っています")
                     }
-                    ForEach(schedules.indices, id: \.self) { index in
-                        Button(scheduleLabel(schedules[index])) { editSchedule(index) }
-                            .disabled(strict || demo)
-                    }
-                    Button("予定を追加") {
-                        if !multipleSchedules {
-                            paywall = .secondSchedule
-                        } else {
-                            editSchedule(schedules.count)
-                        }
-                    }
-                    .disabled(strict || schedules.count >= ScreenTime.maximumSchedules)
                 }
-            } header: {
-                Text("制限の予定")
+                if snapshot.needsStrictMigrationNotice(at: now) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("厳格モードは Pro 限定になり、現在は一時解除できます。")
+                            .font(.footnote)
+                        HStack {
+                            Button("Pro を確認") { paywall = .strictMode }
+                            Spacer()
+                            Button("確認した") { setStrict(false) }
+                                .foregroundStyle(.secondary)
+                        }
+                        .font(.footnote)
+                        .buttonStyle(.borderless)
+                    }
+                    .accessibilityIdentifier("home-strict-migration-notice")
+                }
             }
             Section {
+                Button("制限するアプリを選ぶ", action: openPicker)
+                    .disabled(strict || demo)
+                    .accessibilityIdentifier("home-choose-apps")
                 if PaywallReason.strictMode.isAvailable(on: plan) {
                     Toggle("厳格モード", isOn: Binding(
                         get: { snapshot.settings?.strictEnabled == true },
@@ -442,16 +448,24 @@ private struct SetupView: View {
                 if let end = snapshot.focusEnd, now < end {
                     Text("集中時間中 · \(end.formatted(date: .omitted, time: .shortened)) まで")
                 } else {
-                    Picker("集中時間", selection: $focusMinutes) {
-                        ForEach([15, 25, 45, 60, 90, 120], id: \.self) { minutes in
-                            Text("\(minutes)分").tag(minutes)
+                    DisclosureGroup("今すぐ集中を始める") {
+                        Picker("集中時間", selection: $focusMinutes) {
+                            ForEach([15, 25, 45, 60, 90, 120], id: \.self) { minutes in
+                                Text("\(minutes)分").tag(minutes)
+                            }
+                        }
+                        Button("集中を開始する", action: startFocus)
+                            .disabled(demo)
+                    }
+                }
+                if demo {
+                    NavigationLink("制限画面のプレビュー") {
+                        ShieldDemoView(count: count) {
+                            snapshot.progress.giveUp(at: now, calendar: .current)
                         }
                     }
-                    Button("今すぐ集中を始める", action: startFocus)
-                        .disabled(demo)
+                    .accessibilityIdentifier("home-shield")
                 }
-            } footer: {
-                if strict { Text("厳格モードは制限が終わると変更できます。") }
             }
             Section {
                 if let settings = snapshot.settings {
@@ -468,25 +482,7 @@ private struct SetupView: View {
                         Button("回数の履歴と連続日数") { paywall = .progressHistory }
                     }
                 }
-                if PaywallReason.customPause.isAvailable(on: plan) {
-                    NavigationLink("待ち時間とメッセージ") {
-                        CustomPauseView(preferences: snapshot.configuredPause(at: now)) { snapshot = $0 }
-                    }
-                    .disabled(demo)
-                } else {
-                    Button { paywall = .customPause } label: {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Label("待ち時間とメッセージ", systemImage: "lock.fill")
-                            Text("無料では待ち時間は\(Int(PauseWindow.wait))秒固定です。開くたびに延ばす設定は Pro で使えます。")
-                                .font(.footnote)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    .accessibilityIdentifier("home-custom-pause-locked")
-                }
-            }
-            if demo {
-                Section {
+                if demo {
                     Button("購入画面のプレビュー") { paywall = .secondSchedule }
                         .accessibilityIdentifier("home-paywall")
                 }
@@ -495,6 +491,57 @@ private struct SetupView: View {
     }
 
     private var draft: WeeklySchedule { .init(weekdays: weekdays, start: start, end: end) }
+
+    private var settingsView: some View {
+        let plan = snapshot.plan(at: now)
+        let strict = snapshot.isStrict(at: now)
+        let multipleSchedules = PaywallReason.secondSchedule.isAvailable(on: plan)
+        return Form {
+            if step == .home, let settings = snapshot.settings {
+                let schedules = multipleSchedules ? settings.schedules : [settings.schedule]
+                Section {
+                    ForEach(schedules.indices, id: \.self) { index in
+                        Button(scheduleLabel(schedules[index])) { editSchedule(index) }
+                            .disabled(strict || demo)
+                    }
+                    Button("予定を追加") {
+                        if !multipleSchedules {
+                            paywall = .secondSchedule
+                        } else {
+                            editSchedule(schedules.count)
+                        }
+                    }
+                    .disabled(strict || schedules.count >= ScreenTime.maximumSchedules)
+                } header: {
+                    Text("制限の予定")
+                } footer: {
+                    if strict { Text("厳格モードは制限が終わると変更できます。") }
+                }
+                Section("待ち時間とメッセージ") {
+                    if PaywallReason.customPause.isAvailable(on: plan) {
+                        NavigationLink("待ち時間とメッセージ") {
+                            CustomPauseView(preferences: snapshot.configuredPause(at: now)) { snapshot = $0 }
+                        }
+                        .disabled(demo)
+                    } else {
+                        Button { paywall = .customPause } label: {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Label("待ち時間とメッセージ", systemImage: "lock.fill")
+                                Text("無料では待ち時間は\(Int(PauseWindow.wait))秒固定です。開くたびに延ばす設定は Pro で使えます。")
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .accessibilityIdentifier("home-custom-pause-locked")
+                    }
+                }
+            }
+            Section {
+                LegalLinks()
+            }
+        }
+        .navigationTitle("設定")
+    }
 
     private func scheduleLabel(_ schedule: WeeklySchedule) -> String {
         func time(_ minute: Int) -> String { String(format: "%02d:%02d", minute / 60, minute % 60) }
@@ -633,6 +680,7 @@ private struct SetupView: View {
         end = window.end
         scheduleIndex = index
         errorMessage = nil
+        showSettings = false
         step = .schedule
     }
 
@@ -670,7 +718,7 @@ private struct SetupView: View {
             errorMessage = nil
             step = .home
         } catch {
-            if step == .permission, picker {
+            if (step == .permission || step == .home), picker {
                 pickerSaveError = needsAppReselection
                     ? "元の予定で制限を再開できませんでした。もう一度お試しください。"
                     : "制限を設定できませんでした。もう一度お試しください。"
