@@ -5,6 +5,7 @@ import './icon-candidates.mjs';
 import './first-minute.test.mjs';
 import './escalation-calendar.test.mjs';
 import './preview.test.mjs';
+import './screenshots-workflow.test.mjs';
 
 // Mirror Shared/Domain.swift with an explicit local calendar for these cases.
 process.env.TZ = 'America/New_York';

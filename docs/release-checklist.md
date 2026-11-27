@@ -30,7 +30,7 @@ App Group は `group.jp.screenpause.app`。本体・監視・表示・操作・�
 
 ## 署名・提出時の照合
 
-1. [A・B・Cのアイコン候補](icon/candidates.md)から本人が選んだ案を `docs/icon/chosen.txt` に小文字1文字で記入する。Chromiumがある環境で `node tools/app-icon.mjs --write` で1024pxのAppIconを生成し、`node tools/app-icon.mjs` で照合する。空欄の間は「未選択」と表示される。
+1. `node tools/app-icon.mjs` で採用案 A の通常・ダーク・色合い調整の登録を照合する。差し替え時は `docs/icon/chosen.txt` に選んだ v2 の案を小文字1文字で記入し、Chromium がある環境で `node tools/app-icon.mjs --write` を実行する。 [掲載用アイコン](app-store/icon-brief.ja.md)
 2. MacでXcodeGenからプロジェクトを生成する。配布ターゲット6つの署名チームをそろえる。本体ターゲットのReleaseビルド設定に `SCREEN_PAUSE_LEGAL_BASE_URL` を追加し、GitHub Pagesの `legal` ディレクトリのHTTPS URL（末尾にファイル名を含めない）を指定する。自動署名で配布プロファイルを更新するか、6 IDに合う配布プロファイルを指定する。再生成した場合はチームとURLを再適用する。 [Xcodeの配布手順](https://developer.apple.com/documentation/xcode/distributing-your-app-for-beta-testing-and-releases)
 3. 実機向けにReleaseをアーカイブし、Xcode Organizerでアプリを検証する。全6バンドルのバージョン・ビルド番号・署名・`PrivacyInfo.xcprivacy` と、プライバシーレポートを確認する。既に同じ版のビルド1がアップロード済みなら `CURRENT_PROJECT_VERSION` を上げる。
 4. TestFlightまたは配布相当の実機で、起動、[審査メモのシールド操作](app-store/review-notes.ja.md)、購入・復元と実価格、両方の画面からの公開規約リンクを確認する。年額の無料体験の有無を対象アカウント別に確認する。

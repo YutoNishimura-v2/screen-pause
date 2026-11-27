@@ -1,10 +1,14 @@
 # ひと呼吸
 
+<img src="App/Assets.xcassets/AppIcon.appiconset/AppIcon.png" width="96" height="96" alt="藍色の地に二本柱を置いた、ひと呼吸のアイコン">
+
 選んだアプリを決めた時間に制限し、開く前に10秒おく iPhone・iPad アプリです。ホームには「今日、開かずに戻れた回数」を表示します。日付が変わると日次の回数はゼロに戻り、連続日数は一時解除せずに終えた制限日を数えます。設定と記録は端末内に保存します。
 
 ## ビルド
 
 iOS 17 以降。Mac で XcodeGen と Xcode を使い、アプリと5つの拡張をビルドします。
+
+iOS 18 以降ではダークと色合い調整のアイコンも使えます。 [ホーム画面のアイコンプレビュー](docs/preview/app-icon.png)
 
 ```sh
 xcodegen generate

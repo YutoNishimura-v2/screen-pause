@@ -262,10 +262,11 @@ test('five Japanese App Store captions fit 30 characters and map to unique captu
   }
 });
 
-test('the catalog reflects the repository AppIcon choice', t => {
+test('the application target packages the selected 1024px AppIcon in three appearances', () => {
   const appTarget = section(read('../project.yml'), '  ScreenPause:', '  PauseMonitor:');
+  assert.match(appTarget, /^      - path: App$/m);
   assert.match(appTarget, /^        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon$/m);
-  t.diagnostic(appIcon());
+  assert.equal(appIcon(), 'AppIconの3種類を確認しました。');
 });
 
 test('AppIcon handles an empty choice without rendering and rejects a mismatching selected asset', () => {
@@ -275,26 +276,31 @@ test('AppIcon handles an empty choice without rendering and rejects a mismatchin
   const icon = path.join(root, 'docs/icon');
   const catalog = path.join(root, 'App/Assets.xcassets/AppIcon.appiconset');
   const chosen = path.join(icon, 'chosen.txt');
-  const svg = read('../docs/icon/candidates/b.svg');
-  const render = source => {
-    assert.equal(source.toString(), svg);
-    return readFileSync(new URL('../docs/icon/v2/b.png', import.meta.url));
-  };
   try {
-    mkdirSync(path.join(icon, 'candidates'), { recursive: true });
+    mkdirSync(path.join(icon, 'v2'), { recursive: true });
     writeFileSync(chosen, '');
-    assert.equal(appIcon({ root, render: () => assert.fail('unexpected render') }), '未選択');
+    assert.equal(appIcon({ root }), '未選択');
 
     writeFileSync(chosen, 'b\n');
-    writeFileSync(path.join(icon, 'candidates/b.svg'), svg);
+    const source = readFileSync(new URL('../docs/icon/v2/b.png', import.meta.url));
+    writeFileSync(path.join(icon, 'v2/b.png'), source);
     mkdirSync(catalog, { recursive: true });
-    writeFileSync(path.join(catalog, 'Contents.json'),
-      read('../App/Assets.xcassets/AppIcon.appiconset/Contents.json'));
-    appIcon({ root, write: true, render });
-    assert.equal(appIcon({ root, render }), 'AppIconは採用案と一致しています。');
-    writeFileSync(path.join(catalog, 'AppIcon.png'),
-      readFileSync(new URL('../docs/icon/v2/a.png', import.meta.url)));
-    assert.throws(() => appIcon({ root, render }), /採用案の生成結果と一致しません/);
+    const shipped = '../App/Assets.xcassets/AppIcon.appiconset/';
+    const manifest = read(shipped + 'Contents.json');
+    writeFileSync(path.join(catalog, 'Contents.json'), manifest);
+    for (const { filename } of JSON.parse(manifest).images) {
+      writeFileSync(path.join(catalog, filename), readFileSync(new URL(shipped + filename, import.meta.url)));
+    }
+    const asset = path.join(catalog, 'AppIcon.png');
+    writeFileSync(asset, readFileSync(new URL('../docs/icon/v2/a.png', import.meta.url)));
+    assert.throws(() => appIcon({ root }), /採用案の生成結果と一致しません/);
+    writeFileSync(asset, source);
+    assert.equal(appIcon({ root }), 'AppIconの3種類を確認しました。');
+
+    const withAlphaChannel = Buffer.from(source);
+    withAlphaChannel[25] = 6;
+    writeFileSync(asset, withAlphaChannel);
+    assert.throws(() => appIcon({ root }), /不透明なRGB PNG/);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

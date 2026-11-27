@@ -46,7 +46,7 @@ const CANDIDATES = [
   },
 ];
 
-function findChromium() {
+export function findChromium() {
   const localAppData = process.env.LOCALAPPDATA ?? '';
   const programFiles = process.env.ProgramFiles ?? 'C:\\Program Files';
   const programFilesX86 = process.env['ProgramFiles(x86)'] ?? 'C:\\Program Files (x86)';
@@ -139,7 +139,7 @@ function toDataUri(svgText) {
   return `data:image/svg+xml;base64,${Buffer.from(svgText, 'utf8').toString('base64')}`;
 }
 
-function renderHtmlToPng(chromiumPath, profileDir, htmlPath, outPath, width, height) {
+export function renderHtmlToPng(chromiumPath, profileDir, htmlPath, outPath, width, height) {
   execFileSync(
     chromiumPath,
     [
@@ -151,6 +151,9 @@ function renderHtmlToPng(chromiumPath, profileDir, htmlPath, outPath, width, hei
       '--disable-background-networking',
       '--disable-component-update',
       '--disable-sync',
+      '--no-proxy-server',
+      '--host-resolver-rules=MAP * ~NOTFOUND',
+      '--force-color-profile=srgb',
       '--hide-scrollbars',
       '--force-device-scale-factor=1',
       `--window-size=${width},${height}`,
@@ -158,7 +161,7 @@ function renderHtmlToPng(chromiumPath, profileDir, htmlPath, outPath, width, hei
       `--screenshot=${outPath}`,
       pathToFileURL(htmlPath).href,
     ],
-    { stdio: 'pipe', windowsHide: true }
+    { stdio: 'pipe', windowsHide: true, timeout: 30_000 }
   );
 }
 
@@ -182,16 +185,31 @@ function measureGlyphBBox(chromiumPath, profileDir, htmlPath, svgText) {
   return dom;
 }
 
-function buildSingleIconHtml(svgText) {
+export function buildSingleIconHtml(svgText, grayscale = false) {
   return `<!doctype html>
 <html>
-<head><meta charset="utf-8"><style>
+<head><meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'">
+<style>
 * { margin: 0; padding: 0; }
 html, body { width: 1024px; height: 1024px; overflow: hidden; background: #000; }
-img { display: block; width: 1024px; height: 1024px; }
+img { display: block; width: 1024px; height: 1024px;${grayscale ? ' filter: grayscale(1);' : ''} }
 </style></head>
 <body><img src="${toDataUri(svgText)}" width="1024" height="1024"></body>
 </html>`;
+}
+
+export function buildAppIconVariant(svgSource, id, appearance) {
+  const candidate = CANDIDATES.find(item => item.id === id);
+  const variant = makeVariantSvg(svgSource, appearance, candidate);
+  if (appearance === 'dark') return buildSingleIconHtml(variant);
+
+  // The candidate sheet simulates a blue tint. iOS applies the user's tint
+  // to the shipped grayscale image, whose background is black.
+  const blackBackdrop = variant
+    .replace('fill="url(#bg)"', 'fill="#000000"')
+    .replace('fill="url(#ambient)"', 'fill="none"');
+  return buildSingleIconHtml(blackBackdrop, true);
 }
 
 function buildPreviewSheetHtml(items, bboxStats) {
@@ -844,4 +862,4 @@ function main() {
   }
 }
 
-main();
+if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) main();

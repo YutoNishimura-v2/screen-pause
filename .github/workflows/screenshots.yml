@@ -17,6 +17,7 @@ on:
       - 'ScreenPause.entitlements'
       - 'ScreenPause.storekit'
       - '.github/workflows/screenshots.yml'
+      - '.github/scripts/**'
 
 permissions:
   contents: write
@@ -34,19 +35,29 @@ jobs:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - id: checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
 
-      - name: プロジェクトを生成
+      - id: xcodegen
+        name: プロジェクトを生成
         run: |
-          if ! command -v xcodegen >/dev/null; then
-            HOMEBREW_NO_AUTO_UPDATE=1 brew install xcodegen
-          fi
-          xcodegen generate
+          set -euo pipefail
+          mkdir -p tmp/ci-logs
+          {
+            if ! command -v xcodegen >/dev/null; then
+              HOMEBREW_NO_AUTO_UPDATE=1 brew install xcodegen
+            fi
+            xcodegen generate
+          } 2>&1 | tee tmp/ci-logs/01-xcodegen.log
 
-      - name: iPhone シミュレータで撮影
+      - id: capture
+        name: iPhone シミュレータで撮影
         run: |
+          set -euo pipefail
+          mkdir -p tmp/ci-logs
+          {
           sim=$(xcrun simctl list devices available --json | python3 -c '
           import json, sys
           devices = json.load(sys.stdin)["devices"]
@@ -66,9 +77,14 @@ jobs:
             -test-timeouts-enabled YES -maximum-test-execution-time-allowance 120 \
             -derivedDataPath "$RUNNER_TEMP/screenshot-build" \
             -resultBundlePath "$RUNNER_TEMP/screenshots.xcresult" CODE_SIGNING_ALLOWED=NO
+          } 2>&1 | tee tmp/ci-logs/02-screenshots.log
 
-      - name: 14枚を確認して目次を生成
+      - id: manifest
+        name: 14枚を確認して目次を生成
         run: |
+          set -euo pipefail
+          mkdir -p tmp/ci-logs
+          {
           xcrun xcresulttool export attachments \
             --path "$RUNNER_TEMP/screenshots.xcresult" --output-path "$RUNNER_TEMP/attachments"
           python3 - <<'PY'
@@ -79,8 +95,10 @@ jobs:
 
           directory = Path(os.environ["RUNNER_TEMP"])
           attachments = directory / "attachments"
-          publish = directory / "publish"
-          publish.mkdir()
+          publish = Path("tmp/ci-shots")
+          if publish.exists():
+              shutil.rmtree(publish)
+          publish.mkdir(parents=True, exist_ok=True)
           manifest = json.loads((attachments / "manifest.json").read_text(encoding="utf-8"))
           screens = {
               "01-onboarding-permission": "オンボーディング 1・許可",
@@ -92,6 +110,7 @@ jobs:
               "08-paywall-value": "Proで振り返れること",
           }
           index = [
+              f"成功 {os.environ['GITHUB_SHA']}", "",
               "# ひと呼吸の画面", "",
               "デモデータを使用。制限画面はアプリ内プレビューです。", "",
               "| 画面 | ライト | ダーク |", "| --- | --- | --- |",
@@ -116,18 +135,28 @@ jobs:
               index.append(f"| {label} | {' | '.join(cells)} |")
           (publish / "index.md").write_text("\n".join(index) + "\n", encoding="utf-8")
           PY
+          } 2>&1 | tee tmp/ci-logs/03-index.log
 
-      - name: 撮影画像を公開
-        working-directory: ${{ runner.temp }}/publish
+      - id: publish
+        name: 撮影画像を公開
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          git init --initial-branch=ci-shots
-          git add -- ./*.png index.md
-          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
-            commit -m "Screenshots for $GITHUB_SHA"
-          auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 | tr -d '\r\n')
-          echo "::add-mask::$auth"
-          GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=http.extraheader \
-            GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $auth" \
-            git push --force "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git" HEAD:refs/heads/ci-shots
+          set -euo pipefail
+          bash .github/scripts/publish-ci-shots.sh tmp/ci-shots "Screenshots for $GITHUB_SHA" tmp/ci-logs/04-publish.log
+
+      - id: publish_failure
+        name: 失敗ログを公開
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CI_STEP_OUTCOMES: |
+            checkout=${{ steps.checkout.outcome }}
+            プロジェクトを生成=${{ steps.xcodegen.outcome }}
+            iPhone シミュレータで撮影=${{ steps.capture.outcome }}
+            14枚を確認して目次を生成=${{ steps.manifest.outcome }}
+            撮影画像を公開=${{ steps.publish.outcome }}
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/build-failure-index.py --logs-dir tmp/ci-logs --output tmp/ci-shots/index.md
+          bash .github/scripts/publish-ci-shots.sh tmp/ci-shots "Failure logs for $GITHUB_SHA"
