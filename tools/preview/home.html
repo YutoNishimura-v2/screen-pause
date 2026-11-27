@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=390, initial-scale=1">
+  <title>ひと呼吸</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f2f2f7;
+      --card: #ffffff;
+      --label: #000000;
+      --secondary: rgba(60, 60, 67, 0.6);
+      --tertiary: rgba(60, 60, 67, 0.3);
+      --separator: rgba(60, 60, 67, 0.22);
+      --indigo: #5856d6;
+      --switch-off: rgba(120, 120, 128, 0.16);
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 390px;
+      min-height: 844px;
+      background: var(--bg);
+      color: var(--label);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Hiragino Sans", "Yu Gothic UI", "Meiryo", sans-serif;
+      font-size: 16px;
+      line-height: 1.35;
+      -webkit-font-smoothing: antialiased;
+    }
+    .nav-bar {
+      padding: 10px 16px 6px;
+      background: var(--bg);
+    }
+    .nav-top {
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      height: 32px;
+    }
+    .nav-icon-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      color: var(--indigo);
+      font-size: 15px;
+      text-decoration: none;
+    }
+    .nav-icon-btn svg {
+      width: 20px;
+      height: 20px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.7;
+    }
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      white-space: nowrap;
+    }
+    .large-title {
+      margin: 2px 0 8px;
+      font-size: 32px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      line-height: 1.18;
+    }
+    main {
+      padding: 0 16px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .section-header {
+      padding: 0 16px 5px;
+      font-size: 13px;
+      font-weight: 400;
+      color: var(--secondary);
+    }
+    .card {
+      background: var(--card);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      min-height: 42px;
+      padding: 9px 16px;
+      position: relative;
+    }
+    .row + .row::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 16px;
+      right: 0;
+      height: 0.5px;
+      background: var(--separator);
+    }
+    .hero-block {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 6px;
+      padding: 14px 16px;
+    }
+    .hero-heading {
+      margin: 0;
+      font-size: 17px;
+      font-weight: 600;
+    }
+    .hero-count {
+      font-size: 54px;
+      font-weight: 600;
+      line-height: 1.05;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -0.02em;
+    }
+    .footnote {
+      margin: 0;
+      font-size: 13px;
+      color: var(--secondary);
+    }
+    .link-label {
+      color: var(--label);
+    }
+    .action-label {
+      color: var(--indigo);
+    }
+    .disabled-label {
+      color: var(--tertiary);
+    }
+    .chevron {
+      width: 8px;
+      height: 13px;
+      flex-shrink: 0;
+      color: rgba(60, 60, 67, 0.32);
+    }
+    .picker-value {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--secondary);
+      font-variant-numeric: tabular-nums;
+    }
+    .switch {
+      width: 51px;
+      height: 31px;
+      border-radius: 16px;
+      background: var(--switch-off);
+      padding: 2px;
+      opacity: 0.45;
+      flex-shrink: 0;
+    }
+    .switch-knob {
+      width: 27px;
+      height: 27px;
+      border-radius: 50%;
+      background: #ffffff;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.16);
+    }
+  </style>
+</head>
+<body>
+  <header class="nav-bar">
+    <div class="nav-top">
+      <span class="nav-icon-btn">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="12" cy="12" r="3.2"></circle>
+          <path d="M12 2.8v2.1M12 19.1v2.1M4.9 4.9l1.5 1.5M17.6 17.6l1.5 1.5M2.8 12h2.1M19.1 12h2.1M4.9 19.1l1.5-1.5M17.6 6.4l1.5-1.5"></path>
+        </svg>
+        <span class="sr-only">設定</span>
+      </span>
+    </div>
+    <h1 class="large-title">ひと呼吸</h1>
+  </header>
+
+  <main>
+    <section class="card">
+      <div class="row hero-block">
+        <h2 class="hero-heading">今日、開かずに戻れた回数</h2>
+        <div class="hero-count">0回</div>
+        <p class="footnote">対象アプリを開き「開かずに戻る」で1回。</p>
+      </div>
+      <div class="row">
+        <span class="link-label">制限画面のプレビュー</span>
+        <svg class="chevron" viewBox="0 0 8 14" aria-hidden="true">
+          <path d="M1.2 1.2L6.8 7l-5.6 5.8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+        </svg>
+      </div>
+    </section>
+
+    <div>
+      <div class="section-header">制限の予定</div>
+      <section class="card">
+        <div class="row">
+          <span>制限中</span>
+        </div>
+        <div class="row">
+          <span class="disabled-label">毎日 20:00〜21:00</span>
+        </div>
+        <div class="row">
+          <span class="action-label">予定を追加</span>
+        </div>
+      </section>
+    </div>
+
+    <section class="card">
+      <div class="row">
+        <span class="disabled-label">厳格モード</span>
+        <span class="switch" aria-hidden="true"><span class="switch-knob" style="display:block;"></span></span>
+      </div>
+      <div class="row">
+        <span>集中時間</span>
+        <span class="picker-value">
+          <span>25分</span>
+          <svg class="chevron" viewBox="0 0 10 14" aria-hidden="true" style="width:10px;height:14px;">
+            <path d="M2 5l3-3 3 3M2 9l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+          </svg>
+        </span>
+      </div>
+      <div class="row">
+        <span class="disabled-label">今すぐ集中を始める</span>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="row">
+        <span class="link-label">利用時間を見る</span>
+        <svg class="chevron" viewBox="0 0 8 14" aria-hidden="true">
+          <path d="M1.2 1.2L6.8 7l-5.6 5.8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+        </svg>
+      </div>
+      <div class="row">
+        <span class="link-label">回数の履歴と連続日数</span>
+        <svg class="chevron" viewBox="0 0 8 14" aria-hidden="true">
+          <path d="M1.2 1.2L6.8 7l-5.6 5.8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+        </svg>
+      </div>
+      <div class="row">
+        <span class="disabled-label">待ち時間とメッセージ</span>
+        <svg class="chevron" viewBox="0 0 8 14" aria-hidden="true">
+          <path d="M1.2 1.2L6.8 7l-5.6 5.8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+        </svg>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="row">
+        <span class="action-label">購入画面のプレビュー</span>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
