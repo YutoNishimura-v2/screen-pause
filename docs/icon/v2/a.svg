@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#6562E8"/>
+      <stop offset="52%" stop-color="#4845C4"/>
+      <stop offset="100%" stop-color="#2B278B"/>
+    </linearGradient>
+    <linearGradient id="ambient" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#9A97FF" stop-opacity="0.10"/>
+      <stop offset="40%" stop-color="#4845C4" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="glass" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#F6F7FF"/>
+      <stop offset="35%" stop-color="#FFFFFF"/>
+      <stop offset="100%" stop-color="#E5E8FF"/>
+    </linearGradient>
+    <linearGradient id="glassSheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.45"/>
+      <stop offset="45%" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="20" stdDeviation="22" flood-color="#141154" flood-opacity="0.34"/>
+    </filter>
+    <mask id="topBevel">
+      <rect x="0" y="0" width="1024" height="1024" fill="#000000"/>
+      <rect x="262" y="232" width="186" height="560" rx="93" fill="#FFFFFF"/>
+      <rect x="576" y="232" width="186" height="560" rx="93" fill="#FFFFFF"/>
+      <rect x="262" y="240" width="186" height="560" rx="93" fill="#000000"/>
+      <rect x="576" y="240" width="186" height="560" rx="93" fill="#000000"/>
+    </mask>
+    <clipPath id="glyphClip">
+      <rect x="262" y="232" width="186" height="560" rx="93"/>
+      <rect x="576" y="232" width="186" height="560" rx="93"/>
+    </clipPath>
+  </defs>
+  <rect width="1024" height="1024" fill="url(#bg)"/>
+  <rect width="1024" height="1024" fill="url(#ambient)"/>
+  <g filter="url(#shadow)">
+    <g id="glyph">
+      <rect x="262" y="232" width="186" height="560" rx="93" fill="url(#glass)"/>
+      <rect x="576" y="232" width="186" height="560" rx="93" fill="url(#glass)"/>
+    </g>
+  </g>
+  <g clip-path="url(#glyphClip)">
+    <rect x="262" y="232" width="500" height="560" fill="url(#glassSheen)"/>
+    <rect x="0" y="0" width="1024" height="1024" fill="#FFFFFF" fill-opacity="0.90" mask="url(#topBevel)"/>
+  </g>
+</svg>
