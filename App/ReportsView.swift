@@ -65,7 +65,9 @@ struct ReportsView: View {
         hourly[12] = 18 * 60
         hourly[21] = 28 * 60
         hourly[22] = 18 * 60
-        return UsageSummary(days: days, week: minutes.reduce(0, +) * 60, saved: 48 * 60,
+        let totalMinutes: Double = minutes.reduce(0, +)
+        let weekDuration: TimeInterval = totalMinutes * 60
+        return UsageSummary(days: days, week: weekDuration, saved: 48 * 60,
                             earlyDelta: -12 * 60, apps: apps, hourly: hourly)
     }
 }

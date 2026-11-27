@@ -57,11 +57,16 @@ struct UsageScene: DeviceActivityReportScene {
             return .init(date: day, duration: daily[day])
         }
         let durations = days.compactMap { $0.duration }
-        let topApps = appDurations.filter { $0.value > 0 }.map { app, duration in
-            UsageSummary.AppUsage(name: app.localizedDisplayName ?? "名称不明のアプリ", duration: duration)
-        }.sorted {
-            $0.duration == $1.duration ? $0.name < $1.name : $0.duration > $1.duration
-        }.prefix(5)
+        let activeApps: [Application: TimeInterval] = appDurations.filter { $0.value > 0 }
+        let appUsages: [UsageSummary.AppUsage] = activeApps.map { entry in
+            let name: String = entry.key.localizedDisplayName ?? "名称不明のアプリ"
+            return UsageSummary.AppUsage(name: name, duration: entry.value)
+        }
+        let rankedApps: [UsageSummary.AppUsage] = appUsages.sorted { lhs, rhs in
+            if lhs.duration == rhs.duration { return lhs.name < rhs.name }
+            return lhs.duration > rhs.duration
+        }
+        let topApps: ArraySlice<UsageSummary.AppUsage> = rankedApps.prefix(5)
         return UsageSummary(
             days: days,
             week: durations.count == days.count ? durations.reduce(0, +) : nil,

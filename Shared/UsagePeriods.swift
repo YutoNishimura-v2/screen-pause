@@ -52,8 +52,10 @@ enum UsagePeriods {
         let currentDays = (0..<count).compactMap { calendar.date(byAdding: .day, value: $0, to: week) }
         let current = currentDays.compactMap { daily[$0] }
         guard current.count == count else { return nil }
-        let baselineTotal = baselineDays.prefix(count).compactMap { daily[$0] }.reduce(0, +)
-        return max(0, baselineTotal - current.reduce(0, +))
+        let baselineDurations: [TimeInterval] = baselineDays.prefix(count).compactMap { daily[$0] }
+        let baselineTotal: TimeInterval = baselineDurations.reduce(0, +)
+        let currentTotal: TimeInterval = current.reduce(0, +)
+        return max(0, baselineTotal - currentTotal)
     }
 
     /// Fallback comparison when iOS returns partial hourly history or no completed days in the current week yet.

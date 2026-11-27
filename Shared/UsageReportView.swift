@@ -25,22 +25,7 @@ struct UsageReportView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                VStack(alignment: .leading, spacing: 8) {
-                    if let saved = summary.saved {
-                        Text("今週へらせた時間").font(.headline)
-                        Text(duration(saved)).font(.largeTitle.weight(.semibold)).monospacedDigit()
-                    } else if let delta = summary.earlyDelta {
-                        Text("昨日（同じ時刻まで）との差").font(.headline)
-                        Text(deltaLabel(delta)).font(.largeTitle.weight(.semibold)).monospacedDigit()
-                        Text("0時から現在時刻までの比較です。").font(.footnote).foregroundStyle(.secondary)
-                    } else {
-                        Text("利用時間の比較").font(.headline)
-                        Text("昨日と今日の記録がそろうと表示されます。")
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .accessibilityElement(children: .combine)
-                .accessibilityIdentifier("report-summary")
+                comparison
                 if !summary.apps.isEmpty {
                     DisclosureGroup("今週よく使うアプリ") {
                         ForEach(summary.apps.indices, id: \.self) { index in
@@ -58,22 +43,45 @@ struct UsageReportView: View {
                         }
                     }
                 }
-                DisclosureGroup("利用時間の内訳") {
-                    LabeledContent("今週の合計", value: duration(summary.week))
-                    ForEach(summary.days, id: \.date) { day in
-                        LabeledContent(
-                            day.date.formatted(.dateTime.month().day().locale(Locale(identifier: "ja_JP"))),
-                            value: duration(day.duration)
-                        )
-                    }
-                    Text("月曜始まり。比較には、初週と今週の同じ日数分を使います。")
-                        .font(.footnote).foregroundStyle(.secondary)
-                    Text("初週の記録は、今週と直前5週の範囲で参照します。")
-                        .font(.footnote).foregroundStyle(.secondary)
-                }
+                breakdown
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding()
+        }
+    }
+
+    private var comparison: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if let saved = summary.saved {
+                Text("今週へらせた時間").font(.headline)
+                Text(duration(saved)).font(.largeTitle.weight(.semibold)).monospacedDigit()
+            } else if let delta = summary.earlyDelta {
+                Text("昨日（同じ時刻まで）との差").font(.headline)
+                Text(deltaLabel(delta)).font(.largeTitle.weight(.semibold)).monospacedDigit()
+                Text("0時から現在時刻までの比較です。").font(.footnote).foregroundStyle(.secondary)
+            } else {
+                Text("利用時間の比較").font(.headline)
+                Text("昨日と今日の記録がそろうと表示されます。")
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("report-summary")
+    }
+
+    private var breakdown: some View {
+        DisclosureGroup("利用時間の内訳") {
+            LabeledContent("今週の合計", value: duration(summary.week))
+            ForEach(summary.days, id: \.date) { day in
+                LabeledContent(
+                    day.date.formatted(.dateTime.month().day().locale(Locale(identifier: "ja_JP"))),
+                    value: duration(day.duration)
+                )
+            }
+            Text("月曜始まり。比較には、初週と今週の同じ日数分を使います。")
+                .font(.footnote).foregroundStyle(.secondary)
+            Text("初週の記録は、今週と直前5週の範囲で参照します。")
+                .font(.footnote).foregroundStyle(.secondary)
         }
     }
 
