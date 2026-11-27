@@ -30,9 +30,9 @@ struct UsageReportView: View {
                         Text("今週へらせた時間").font(.headline)
                         Text(duration(saved)).font(.largeTitle.weight(.semibold)).monospacedDigit()
                     } else if let delta = summary.earlyDelta {
-                        Text("昨日（同じ時刻まで）との差").font(.headline)
+                        Text("昨日の合計との差").font(.headline)
                         Text(deltaLabel(delta)).font(.largeTitle.weight(.semibold)).monospacedDigit()
-                        Text("0時から現在時刻までの比較です。").font(.footnote).foregroundStyle(.secondary)
+                        Text("今日の利用時間は途中経過です。").font(.footnote).foregroundStyle(.secondary)
                     } else {
                         Text("利用時間の比較").font(.headline)
                         Text("昨日と今日の記録がそろうと表示されます。")
@@ -42,19 +42,17 @@ struct UsageReportView: View {
                 .accessibilityElement(children: .combine)
                 .accessibilityIdentifier("report-summary")
                 if !summary.apps.isEmpty {
-                    DisclosureGroup("今週よく使うアプリ") {
-                        ForEach(summary.apps.indices, id: \.self) { index in
-                            let app = summary.apps[index]
-                            LabeledContent(app.name, value: duration(app.duration))
-                        }
+                    Text("今週よく使うアプリ").font(.headline).accessibilityAddTraits(.isHeader)
+                    ForEach(summary.apps.indices, id: \.self) { index in
+                        let app = summary.apps[index]
+                        LabeledContent(app.name, value: duration(app.duration))
                     }
                 }
                 if summary.hourly.contains(where: { $0 > 0 }) {
-                    DisclosureGroup("今週の時間帯別利用") {
-                        ForEach(summary.hourly.indices, id: \.self) { hour in
-                            if summary.hourly[hour] > 0 {
-                                LabeledContent("\(hour)時台", value: duration(summary.hourly[hour]))
-                            }
+                    Text("今週の時間帯別利用").font(.headline).accessibilityAddTraits(.isHeader)
+                    ForEach(summary.hourly.indices, id: \.self) { hour in
+                        if summary.hourly[hour] > 0 {
+                            LabeledContent("\(hour)時台", value: duration(summary.hourly[hour]))
                         }
                     }
                 }

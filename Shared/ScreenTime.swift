@@ -77,36 +77,6 @@ struct SharedState: Codable {
                                    focusEnd: focusEnd, at: now, calendar: calendar)
     }
 
-    private static func activeEnd(of schedule: WeeklySchedule, at now: Date, calendar: Calendar) -> Date? {
-        guard let day = schedule.activeDay(at: now, calendar: calendar) else { return nil }
-        let endDay = schedule.start < schedule.end
-            ? day
-            : calendar.date(byAdding: .day, value: 1, to: day)
-        guard let endDay else { return nil }
-        var components = calendar.dateComponents([.year, .month, .day], from: endDay)
-        components.hour = schedule.end / 60
-        components.minute = schedule.end % 60
-        components.second = 0
-        return calendar.date(from: components)
-    }
-
-    /// Returns the end date of the active block window (schedule or focus) at `now`, if any.
-    func blockingUntil(at now: Date, calendar: Calendar = .current) -> Date? {
-        guard let settings else { return nil }
-        let multipleSchedules = PaywallReason.secondSchedule.isAvailable(on: plan(at: now))
-        let schedules = multipleSchedules ? settings.schedules : [settings.schedule]
-        var ends = schedules.compactMap { Self.activeEnd(of: $0, at: now, calendar: calendar) }
-        if let focusEnd, now < focusEnd {
-            ends.append(focusEnd)
-        }
-        return ends.max()
-    }
-
-    /// True when strict mode was enabled before becoming Pro-only and the user is currently on the free plan.
-    func needsStrictMigrationNotice(at now: Date) -> Bool {
-        settings?.strictEnabled == true && !PaywallReason.strictMode.isAvailable(on: plan(at: now))
-    }
-
     func isStrict(at now: Date, calendar: Calendar = .current) -> Bool {
         PaywallReason.strictMode.isAvailable(on: plan(at: now)) &&
             BlockRules.isStrict(enabled: settings?.strictEnabled == true,

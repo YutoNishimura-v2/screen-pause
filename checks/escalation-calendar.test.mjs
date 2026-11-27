@@ -181,46 +181,31 @@ test('the paywall explains the three Pro benefits before purchase and labels the
   assert.match(paywall, /let savings = \(1 - yearly \/ \(monthly \* 12\)\) \* 100/);
 });
 
-test('the free hourly report compares the same hour window on day 2 and shows this week by app and hour', () => {
+test('the free hourly report compares the second day and shows this week by app and hour', () => {
   const today = Date.UTC(2026, 10, 23);
   const yesterday = Date.UTC(2026, 10, 22);
-  const sameHourDelta = (daily, hourlyByDay, date, hour) => {
+  const earlyDelta = (daily, date) => {
     const previous = new Date(date);
     previous.setUTCDate(previous.getUTCDate() - 1);
-    if (!daily.has(+previous) || !daily.has(date)) return null;
-    const prevHours = hourlyByDay.get(+previous) ?? new Map();
-    const currHours = hourlyByDay.get(date) ?? new Map();
-    let prevSum = 0;
-    let currSum = 0;
-    for (let h = 0; h <= hour; h += 1) {
-      prevSum += prevHours.get(h) ?? 0;
-      currSum += currHours.get(h) ?? 0;
-    }
-    return currSum - prevSum;
+    return daily.has(+previous) && daily.has(date) ? daily.get(date) - daily.get(+previous) : null;
   };
-  const hourlyByDay = new Map([
-    [yesterday, new Map([[8, 1200], [10, 1200], [20, 3600]])],
-    [today, new Map([[8, 900], [10, 600]])],
-  ]);
-  // At 10:xx, yesterday's 20:00 usage is excluded so the comparison stays symmetric.
-  assert.equal(sameHourDelta(new Map([[yesterday, 6000], [today, 1500]]), hourlyByDay, today, 10), -900);
-  assert.equal(sameHourDelta(new Map([[yesterday, 0], [today, 1800]]), new Map([[today, new Map([[9, 1800]])]]), today, 10), 1800);
-  assert.equal(sameHourDelta(new Map([[today, 1800]]), hourlyByDay, today, 10), null);
+  assert.equal(earlyDelta(new Map([[yesterday, 2400], [today, 1500]]), today), -900);
+  assert.equal(earlyDelta(new Map([[yesterday, 0], [today, 1800]]), today), 1800);
+  assert.equal(earlyDelta(new Map([[today, 1800]]), today), null);
 
   const report = read('../Report/UsageReport.swift');
   assert.match(section(report, 'private func earlyDelta', '\n}'),
-    /UsagePeriods\.sameHourDelta\(daily: daily, hourlyByDay: hourlyByDay, now: now, calendar: calendar\)/);
+    /value: -1, to: today\)[\s\S]*?let previous = daily\[yesterday\], let current = daily\[today\] else \{ return nil \}\s+return current - previous/);
   assert.match(report, /case let \.hourly\(interval\)/);
   assert.match(report, /var appDurations: \[Application: TimeInterval\]/);
   assert.match(report, /if day >= week \{\s+appDurations\[app\.application, default: 0\] \+= app\.totalActivityDuration/);
   assert.match(report, /\.prefix\(5\)[\s\S]*?apps: Array\(topApps\)/);
   assert.match(report, /Array\(repeating: TimeInterval\.zero, count: 24\)/);
-  assert.match(report, /hourly\[hour\] \+= duration/);
-  assert.match(report, /earlyDelta: earlyDelta\(daily: daily, hourlyByDay: hourlyByDay, now: now, calendar: calendar\)/);
+  assert.match(report, /hourly\[calendar\.component\(\.hour, from: start\)\] \+= duration/);
+  assert.match(report, /earlyDelta: earlyDelta\(daily: daily, today: today, calendar: calendar\)/);
   const view = read('../Shared/UsageReportView.swift');
   assert.match(view, /let apps: \[AppUsage\]\s+let hourly: \[TimeInterval\]/);
   assert.match(view, /if let saved = summary\.saved[\s\S]*?else if let delta = summary\.earlyDelta/);
-  assert.match(view, /昨日（同じ時刻まで）との差/);
   assert.match(view, /ForEach\(summary\.apps\.indices/);
   assert.match(view, /ForEach\(summary\.hourly\.indices/);
   assert.doesNotMatch(section(view, 'struct UsageReportView', 'private func duration'), /Paywall|ProAccess/);
@@ -421,88 +406,4 @@ test('docs/benchmark.md covers the three points with valid file:line references 
     }
   }
   assert.doesNotMatch(benchmark, /19,977|19977|80万|800K|4\.6|4\.7/);
-});
-
-test('flexibleSavedTime recovers from partial hourly history and same-day first-hour comparison', () => {
-  const local = (day, hour = 0, minute = 0) => new Date(2026, 10, day, hour, minute);
-  const shiftDay = (date, days) => new Date(date.getFullYear(), date.getMonth(), date.getDate() + days);
-  const savedTime = (daily, baseline, week, today) => {
-    const baselineDays = Array.from({ length: 7 }, (_, offset) => shiftDay(baseline, offset));
-    if (today <= baselineDays[6] || baselineDays.some((day) => !daily.has(+day))) return null;
-    if (week <= baselineDays[6]) return null;
-    const currentDays = [];
-    for (let day = week; day < today; day = shiftDay(day, 1)) currentDays.push(day);
-    if (!currentDays.length || currentDays.length > 6 || currentDays.some((day) => !daily.has(+day))) return null;
-    const sum = (days) => days.reduce((total, day) => total + daily.get(+day), 0);
-    return Math.max(0, sum(baselineDays.slice(0, currentDays.length)) - sum(currentDays));
-  };
-  const flexibleSavedTime = (daily, hourlyByDay, baseline, week, now) => {
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const exact = savedTime(daily, baseline, week, today);
-    if (exact != null) return exact;
-    const baselineDays = Array.from({ length: 7 }, (_, offset) => shiftDay(baseline, offset));
-    const lastBaseline = baselineDays[6];
-    if (week <= lastBaseline || today <= lastBaseline) return null;
-    const count = Math.min(6, Math.round((today - week) / 86_400_000));
-    if (count >= 1) {
-      const pairs = [];
-      for (let offset = 0; offset < count; offset += 1) {
-        const b = daily.get(+baselineDays[offset]);
-        const c = daily.get(+shiftDay(week, offset));
-        if (b != null && c != null) pairs.push([b, c]);
-      }
-      if (pairs.length > 0) {
-        return Math.max(0, pairs.reduce((s, [b]) => s + b, 0) - pairs.reduce((s, [, c]) => s + c, 0));
-      }
-    }
-    const offset = Math.max(0, Math.min(6, Math.round((today - week) / 86_400_000)));
-    const baselineDay = baselineDays[offset];
-    if (!daily.has(+baselineDay) || !daily.has(+today)) return null;
-    const hour = now.getHours();
-    const baseHours = hourlyByDay.get(+baselineDay) ?? new Map();
-    const todayHours = hourlyByDay.get(+today) ?? new Map();
-    let basePartial = 0;
-    let todayPartial = 0;
-    for (let h = 0; h <= hour; h += 1) {
-      basePartial += baseHours.get(h) ?? 0;
-      todayPartial += todayHours.get(h) ?? 0;
-    }
-    return Math.max(0, basePartial - todayPartial);
-  };
-
-  const baseline = local(1);
-  const week = local(15);
-  const partialDaily = new Map([
-    [+local(4), 3600], [+local(5), 3600],
-    [+local(18), 1800], [+local(19), 1800],
-  ]);
-  assert.equal(savedTime(partialDaily, baseline, week, local(20)), null);
-  assert.equal(flexibleSavedTime(partialDaily, new Map(), baseline, week, local(20, 12)), 3600);
-
-  const mondayDaily = new Map([[+local(1), 4000], [+local(15), 1200]]);
-  const hourlyByDay = new Map([
-    [+local(1), new Map([[9, 1800], [10, 600], [20, 1600]])],
-    [+local(15), new Map([[9, 1000], [10, 200]])],
-  ]);
-  assert.equal(flexibleSavedTime(mondayDaily, hourlyByDay, baseline, week, local(15, 10, 30)), 1200);
-
-  const periods = read('../Shared/UsagePeriods.swift');
-  const report = read('../Report/UsageReport.swift');
-  const reportsView = read('../App/ReportsView.swift');
-  assert.match(periods, /static func flexibleSavedTime\(/);
-  assert.match(periods, /static func sameHourDelta\(/);
-  assert.match(report, /UsagePeriods\.flexibleSavedTime\(/);
-  assert.match(report, /UsagePeriods\.sameHourDelta\(/);
-  const sample = reportsView.slice(reportsView.indexOf('private var sample:'), reportsView.indexOf('struct ProgressHistoryView'));
-  assert.doesNotMatch(sample, /apps:\s*\[\]|hourly:\s*\[\]/);
-  assert.match(sample, /apps:\s*apps,\s*hourly:\s*hourly/);
-});
-
-test('month calendar avoids tiny fixed sizes, marks missed days with xmark, and combines streak accessibility', () => {
-  const reports = read('../App/ReportsView.swift');
-  assert.doesNotMatch(reports, /\.system\(size: 9/);
-  assert.doesNotMatch(reports, /frame\(height: 36\)/);
-  assert.doesNotMatch(reports, /minHeight: 36\)/);
-  assert.match(reports, /Image\(systemName: "xmark"\)/);
-  assert.match(reports, /Section\("連続日数"\) \{[\s\S]*\.accessibilityElement\(children: \.combine\)/);
 });

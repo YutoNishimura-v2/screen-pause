@@ -465,7 +465,7 @@ test('welcome leads through iOS consent and the app picker directly to an active
   assert.match(entry, /FamilyActivityPicker\(selection: \$pickerSelection\)/);
   assert.match(entry, /Button\(pickerActionTitle, action: confirmApps\)[\s\S]*?\.disabled\(!demo && !ScreenTime\.hasApps\(pickerSelection\)\)/);
   assert.match(entry, /今から1時間の制限を始める/);
-  assert.match(entry, /private func confirmApps\(\) \{\s+selection = pickerSelection\s+if step == \.permission \|\| step == \.home \{\s+pickerSaveError = nil\s+save\(\)\s+guard pickerSaveError == nil, step == \.home else \{ return \}\s+\}\s+picker = false\s+\}/);
+  assert.match(entry, /private func confirmApps\(\) \{\s+selection = pickerSelection\s+if step == \.permission \{\s+pickerSaveError = nil\s+save\(\)\s+guard step == \.home else \{ return \}\s+\}\s+picker = false\s+\}/);
   assert.match(save, /let firstStart = demo \? demoStart : \.now\s+let schedule = step == \.schedule \? draft : snapshot\.settings\?\.schedule \?\? immediateSchedule\(at: firstStart\)/);
   assert.match(app, /start: minute, end: \(minute \+ 60\) % 1440/);
   assert.match(save, /snapshot = try ScreenTime\.install\(settings, replacingRevokedSelection: recovering\)\s+needsAppReselection = false\s+now = \.now\s+errorMessage = nil\s+step = \.home/);
@@ -727,7 +727,7 @@ test('the app and every extension package a privacy manifest and share bundle ve
 test('paywall and settings expose the same published and bundled legal documents', () => {
   const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8');
   assert.match(read('../App/Paywall.swift'), /LegalLinks\(\)/);
-  assert.match(read('../App/ScreenPauseApp.swift'), /private var settingsView: some View \{[\s\S]*LegalLinks\(\)[\s\S]*\.navigationTitle\("設定"\)/);
+  assert.match(read('../App/ScreenPauseApp.swift'), /Form \{ LegalLinks\(\) \}\s*\.navigationTitle\("設定"\)/);
   const links = read('../App/LegalLinks.swift');
   assert.match(links, /Link\(document\.title, destination: url\)/);
   assert.match(links, /document\.localPage/);

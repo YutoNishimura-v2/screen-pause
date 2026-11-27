@@ -120,18 +120,3 @@
 | **G5 / C1**（色・枠線だけでなく形でも見分ける） | **違反あり** | `App/ReportsView.swift:188-192`（`missed` 状態が `Color.secondary` の 1pt 枠線のみで記号がなく、ライト/ダーク両方で `noSchedule` と見分けにくい、`推測`）。 |
 | **P2**（取り返しにくい操作の確認） | **違反あり** | `App/ScreenPauseApp.swift:324`（`Button("この予定を削除", role: .destructive, action: removeSchedule)` に確認ダイアログがない。厳格モードオンの `:146-151` には確認あり）。 |
 | **I3**（読み込み中・失敗時も空にしない） | **軽微な違反** | `App/Paywall.swift:40, 72-75, 79`（実機で StoreKit 読み込み中はプラン選択肢と購入ボタンが消え `ProgressView` のみになる、`推測`）。 |
-
----
-
-## 対応
-
-| 対象 | 状態 | 対応箇所・理由 |
-| --- | --- | --- |
-| **【1位】ホーム画面の整理・残り時間・直接アプリ変更** | **直した** | `App/ScreenPauseApp.swift:230-290,341-544,687-730`, `Shared/ScreenTime.swift:80-103`（`homeForm` を3セクションへ整理し `baselineStart` 案内を先頭カードから除去、制限中表示に終了時刻と残り分を追加、`homeForm` から直接 `openPicker` を呼び出して `snapshot.settings.selection` 読込・`選択を反映`・`save()` 永続化・`pickerSaveError` 表示まで接続し、予定一覧・待ち時間編集・`LegalLinks()` を `設定` 配下へ移動。あわせて削除確認ダイアログ `App/ScreenPauseApp.swift:156-159,335` を追加）。 |
-| **【2位】2〜7日目レポート（部分返却補完・同時間帯比較・デモデータ）** | **直した** | `Shared/UsagePeriods.swift:60-117`, `Report/UsageReport.swift:68-83`, `Shared/UsageReportView.swift:33-60`, `App/ReportsView.swift:51-70`（`flexibleSavedTime` と `sameHourDelta` を追加して部分返却・初日同時間帯比較に対応、`apps`・`hourly` を `DisclosureGroup` に整理、`ReportsView.sample` に非空データを設定。42日分の `.hourly` 実データ返却は実機確認が必要）。 |
-| **【3位】(c) 利用規約の Pro 記載同期** | **直した** | `docs/legal/terms.md:12`（Pro の説明に「月ごとの達成カレンダー」「厳格モード」を追記）。 |
-| **【3位】(a)(b) AppIcon 設定・Store スクショ撮影** | **見送り** | `AppIcon` はオーナー選定待ちであり、Windows 環境に Xcode / iOS Simulator が無いためアセット登録・`ScreenshotTests` コンパイル撮影を実行できないため。 |
-| **【4位】厳格モード移行通知・Paywall 導線・仮価格明示** | **直した** | `Shared/ScreenTime.swift:106-108`, `App/ScreenPauseApp.swift:414-428`, `App/Paywall.swift:25,62-189`（無料プランで `strictEnabled == true` 時の移行バナーを追加、Paywall に `reasonSummary`・仮価格表記（価格行・お得率・`purchaseTerms`）・44pt ボタン・読込中のプラン名表示を追加）。 |
-| **【5位】OS シールド待機時刻・ボタン切替・ホーム戻り先** | **次回** | ホーム待機終了文言のみ対象アプリ誘導へ更新（`App/ScreenPauseApp.swift:372`）。`Shield/Shield.swift`・`Shared/ShieldAppearance.swift`・`App/ShieldDemoView.swift` は変更ファイル数上限（約10ファイル）と優先順位により次回。 |
-| **【6位】初回1時間制限と毎日予定の分離** | **次回** | 優先順位および変更ファイル数（`metadata.ja.json`・`review-notes.ja.md`・`README.md` 同期を含む）により次回。 |
-| **【7位】`MonthCalendarView` AX5・非色覚・VO 統合** | **直した（一部見送り）** | `App/ReportsView.swift:86-93,165-206`（`.system(size: 9)` と固定 `height: 36` を廃止して `minHeight: 44` へ変更、`missed` に `xmark` を追加、連続日数へ `.accessibilityElement(children: .combine)` を適用）。`ScreenshotTests/ScreenshotTests.swift` の `--screenshot-ax5` 経路拡張は Windows 環境に Xcode が無いため見送り。 |
