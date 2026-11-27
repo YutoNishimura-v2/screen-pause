@@ -71,7 +71,7 @@ jobs:
           xcrun simctl bootstatus "$sim" -b
           xcrun simctl status_bar "$sim" override --time '9:41' --dataNetwork wifi \
             --wifiMode active --wifiBars 3 --cellularMode active --cellularBars 4 \
-            --batteryState unplugged --batteryLevel 100
+            --batteryState discharging --batteryLevel 100
           xcodebuild test -project ScreenPause.xcodeproj -scheme ScreenPauseScreenshots \
             -destination "platform=iOS Simulator,id=$sim" -parallel-testing-enabled NO \
             -test-timeouts-enabled YES -maximum-test-execution-time-allowance 120 \

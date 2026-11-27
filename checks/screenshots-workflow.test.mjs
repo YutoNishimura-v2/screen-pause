@@ -123,6 +123,12 @@ test('screenshots.yml tees every run step to tmp/ci-logs/ with pipefail and publ
   assert.doesNotMatch(workflowText + '\n' + pushScript, /echo\s+["']?\$GH_TOKEN/);
 });
 
+test('screenshot capture uses the supported simulator battery state for an unplugged phone', () => {
+  const { steps } = parseScreenshotsWorkflow(read('.github/workflows/screenshots.yml'));
+  const captureStep = steps.find((step) => step.id === 'capture');
+  assert.match(captureStep.run, /xcrun simctl status_bar\b[^\n]*(?:\\\n[^\n]*)*?--batteryState discharging\b/);
+});
+
 test('embedded Python snippets in screenshots.yml and build-failure-index.py have valid syntax', () => {
   const python = resolvePythonCommand();
   const workflowText = read('.github/workflows/screenshots.yml');
