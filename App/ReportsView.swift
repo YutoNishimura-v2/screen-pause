@@ -41,7 +41,7 @@ struct ReportsView: View {
         let yesterday = calendar.date(byAdding: .day, value: -1, to: today) ?? today
         let start = comparisonStart ?? min(week, yesterday)
         let context: DeviceActivityReport.Context = comparisonStart == nil ? .currentUsage : .selectedUsage
-        DeviceActivityReport(context, filter: DeviceActivityFilter(
+        return DeviceActivityReport(context, filter: DeviceActivityFilter(
             segment: .hourly(during: DateInterval(start: start, end: end)),
             applications: selection.applicationTokens,
             categories: selection.categoryTokens

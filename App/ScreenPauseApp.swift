@@ -634,7 +634,8 @@ private struct SetupView: View {
                     }
                 }
             }
-        @unknown default:
+        // Route every other status through the existing recovery flow, across SDK versions.
+        default:
             showPermissionIssue(.unavailable)
         }
     }

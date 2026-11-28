@@ -232,6 +232,12 @@ test('the free hourly report compares the same hour window on day 2 and shows th
   assert.doesNotMatch(route, /Paywall|ProAccess/);
 });
 
+test('liveReport explicitly returns the report after preparing its filter', () => {
+  const liveReport = section(read('../App/ReportsView.swift'), 'private var liveReport:', 'private var sample:');
+  assert.match(liveReport, /^\s+return\s+DeviceActivityReport\s*\(/m,
+    'a non-builder getter with local statements must explicitly return its view');
+});
+
 test('store copy and reviewer steps cover escalating waits and the calendar', () => {
   const metadata = JSON.parse(read('../docs/app-store/metadata.ja.json'));
   assert.ok(metadata.subtitle.length <= 30);

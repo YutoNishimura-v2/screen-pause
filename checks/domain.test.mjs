@@ -498,7 +498,7 @@ test('authorization loss explains the state in Japanese and returns to retry or 
   assert.match(restore, /case \.notDetermined:[\s\S]*?showPermissionIssue\(\.revoked\)/);
   assert.match(restore, /case \.denied:[\s\S]*?showPermissionIssue\(\.denied\)/);
   assert.match(restore, /case \.approved:\s+permissionIssue = nil/);
-  assert.match(restore, /@unknown default:\s+showPermissionIssue\(\.unavailable\)/);
+  assert.match(restore, /^\s*default:\s+showPermissionIssue\(\.unavailable\)/m);
   assert.match(restore, /step = \.permission\s+picker = false\s+paywall = nil/);
   assert.match(app, /previous == \.approved, current != \.approved \{\s+showPermissionIssue\(\.revoked\)/);
 });
