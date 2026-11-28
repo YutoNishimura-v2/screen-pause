@@ -273,14 +273,22 @@ test('the AX5 first-block demo reveals lazy Form rows before using them', () => 
   const reveal = section(screenshotTests, 'private func reveal(', 'private func capture(');
   assert.match(reveal, /waitForExistence\(timeout: 2\)\s+if element\.exists && element\.isHittable \{ return \}\s+for _ in 0\.\.<8/,
     'reveal waits before deciding whether to scroll');
-  assert.match(reveal, /for _ in 0\.\.<8 \{\s+if scrollingUp \{ app\.swipeDown\(\) \}\s+else \{ app\.swipeUp\(\) \}\s+_ = element\.waitForExistence\(timeout: 2\)\s+if element\.exists && element\.isHittable \{ return \}\s+\}\s+XCTFail\("[^"\r\n]*\\\(element\)/,
-    'reveal checks lazy rows after every swipe and names the query on failure');
+  assert.match(reveal, /in scrollArea: XCUIElement/);
+  assert.match(reveal, /for _ in 0\.\.<8 \{\s+if scrollingUp \{ scrollArea\.swipeDown\(\) \}\s+else \{ scrollArea\.swipeUp\(\) \}\s+_ = element\.waitForExistence\(timeout: 2\)\s+if element\.exists && element\.isHittable \{ return \}\s+\}\s+XCTFail\("[^"\r\n]*\\\(element\)/,
+    'reveal swipes the supplied area, checks lazy rows after every swipe, and names the query on failure');
 
   const firstBlock = section(screenshotTests, 'private func exerciseFirstBlockDemo(', 'private func captureScreens(');
   assert.match(firstBlock, /for identifier in \["setup-permission", "setup-start", "home-shield"\] \{\s+let control = element\(identifier, in: app\)\s+reveal\(control, in: app\)\s+control\.tap\(\)/,
     'the first-block loop lets reveal scroll before requiring the control to exist');
   assert.match(firstBlock, /stop\.tap\(\)\s+let count = element\("home-count", in: app\)\s+reveal\(count, in: app, scrollingUp: true\)\s+XCTAssertEqual\(count\.label,/,
     'returning home scrolls up to the count before reading its label');
+
+  const picker = section(screenshotTests, 'private func verifyDemoSelection(', 'private func element(');
+  assert.match(picker, /let footer = app\.scrollViews\["setup-picker-actions-scroll"\]/);
+  for (const control of ['terms', 'start']) {
+    assert.match(picker, new RegExp(`if accessibilitySize, footer\\.exists \\{\\s+reveal\\(${control}, in: footer\\)\\s+\\}`),
+      `${control} scrolls inside the picker footer when it is present at AX5`);
+  }
 });
 
 test('the application target packages the selected 1024px AppIcon in three appearances', () => {

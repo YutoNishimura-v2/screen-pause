@@ -451,6 +451,7 @@ test('the first screen explains the Screen Time difference in one Japanese line'
   const intro = app.split('private var permissionForm:')[1]?.split('private var setupActionTitle:')[0];
   assert.match(app, /@State private var step = Step\.permission/);
   assert.match(intro, /setupHeading\([^\n]+detail: "スクリーンタイムと違い、[^"\n]*開く前に[^"\n]*開かずに戻れた回数を記録[^"\n]*。"/);
+  assert.match(intro, /Text\("選んだアプリの制限と利用時間の表示に許可を使います。"\)[\s\S]*Button\(setupActionTitle\)/);
 });
 
 test('welcome leads through iOS consent and the app picker directly to an active limit', () => {
@@ -458,16 +459,17 @@ test('welcome leads through iOS consent and the app picker directly to an active
   const screenTime = readFileSync(new URL('../Shared/ScreenTime.swift', import.meta.url), 'utf8');
   const entry = app.slice(app.indexOf('private var permissionForm:'), app.indexOf('private func setupHeading'));
   const setup = app.slice(app.indexOf('private func beginSetup'), app.indexOf('private func restore()'));
-  const save = app.slice(app.indexOf('private func save()'), app.indexOf('private func removeSchedule'));
+  const save = app.slice(app.indexOf('private func save('), app.indexOf('private func removeSchedule'));
   assert.match(entry, /Button\(setupActionTitle\) \{\s+Task \{ await beginSetup\(\) \}/);
   assert.match(setup, /await authorize\(\)[\s\S]*?guard authorization\.authorizationStatus == \.approved[\s\S]*?openPicker\(\)/);
   assert.match(setup, /requestAuthorization\(for: \.individual\)/);
   assert.match(app, /\.sheet\(isPresented: \$picker\) \{ appPicker \}/);
   assert.match(entry, /FamilyActivityPicker\(selection: \$pickerSelection\)/);
-  assert.match(entry, /Button\(pickerActionTitle, action: confirmApps\)[\s\S]*?\.disabled\(!demo && !ScreenTime\.hasApps\(pickerSelection\)\)/);
+  assert.match(entry, /Button \{\s+confirmApps\(displayedSchedule: firstRunSchedule\)\s+\} label: \{\s+Text\(pickerActionTitle\)[\s\S]*?\.disabled\(!canConfirmApps\)/);
+  assert.match(entry, /private var canConfirmApps: Bool \{\s+demo \? !demoSelection\.isEmpty : ScreenTime\.hasApps\(pickerSelection\)\s+\}/);
   assert.match(entry, /今から1時間の制限を始める/);
-  assert.match(entry, /private func confirmApps\(\) \{\s+selection = pickerSelection\s+if step == \.permission \|\| step == \.home \{\s+pickerSaveError = nil\s+save\(\)\s+guard pickerSaveError == nil, step == \.home else \{ return \}\s+\}\s+picker = false\s+\}/);
-  assert.match(save, /let firstStart = demo \? demoStart : \.now\s+let schedule = step == \.schedule \? draft : snapshot\.settings\?\.schedule \?\? immediateSchedule\(at: firstStart\)/);
+  assert.match(entry, /private func confirmApps\(displayedSchedule: WeeklySchedule\?\) \{\s+guard canConfirmApps else \{ return \}/);
+  assert.match(save, /guard let schedule = step == \.schedule \? draft : snapshot\.settings\?\.schedule \?\? firstRunSchedule else/);
   assert.match(app, /start: minute, end: \(minute \+ 60\) % 1440/);
   assert.match(save, /snapshot = try ScreenTime\.install\(settings, replacingRevokedSelection: recovering\)\s+needsAppReselection = false\s+now = \.now\s+errorMessage = nil\s+step = \.home/);
   assert.match(screenTime, /static func install\([\s\S]*?transaction\(applyShields: true/);
@@ -528,9 +530,9 @@ test('explicit approval refreshes Pro state without holding up the app picker', 
 
 test('demo and production save the same schedule draft when editing', () => {
   const app = readFileSync(new URL('../App/ScreenPauseApp.swift', import.meta.url), 'utf8');
-  const save = app.split('private func save() {')[1].split('private func removeSchedule')[0];
-  assert.match(save, /let schedule = step == \.schedule \? draft :[^\n]+\s+var settings = BlockSettings\(schedule: schedule, selection: selection\)/);
-  assert.match(save, /settings\.setSchedules\(schedules\)\s+\}\s+if demo \{\s+now = firstStart\s+snapshot\.settings = settings/);
+  const save = app.split('private func save(')[1].split('private func removeSchedule')[0];
+  assert.match(save, /guard let schedule = step == \.schedule \? draft :[^\n]+ else \{[^}]+\}\s+var settings = BlockSettings\(schedule: schedule, selection: selection\)/);
+  assert.match(save, /settings\.setSchedules\(schedules\)\s+\}\s+if demo \{\s+now = date\s+snapshot\.settings = settings/);
   assert.match(save, /snapshot = try ScreenTime\.install\(settings,/);
 });
 
@@ -557,7 +559,7 @@ test('home explains the first return when today’s count is zero', () => {
   const app = readFileSync(new URL('../App/ScreenPauseApp.swift', import.meta.url), 'utf8');
   const home = app.slice(app.indexOf('private var homeForm:'), app.indexOf('private var draft:'));
   assert.match(home, /let count = snapshot\.progress\.count\(at: now, calendar: calendar\)/);
-  assert.match(home, /let countDetail = blocking\s+\? "対象アプリを開き「\\\(ShieldAppearance\.primary\)」で1回。"\s+: "制限中に「\\\(ShieldAppearance\.primary\)」で1回。"/);
+  assert.match(home, /let countDetail = demo\s+\? "制限画面のプレビューで「\\\(ShieldAppearance\.primary\)」を試せます。"\s+: \(blocking/);
   assert.ok(home.includes('Text("\\(count)回")'));
   assert.match(home, /if count == 0 \{\s+Text\(countDetail\)/);
   assert.match(home, /\.accessibilityHint\(count == 0 \? countDetail : ""\)/);

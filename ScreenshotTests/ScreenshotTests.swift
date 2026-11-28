@@ -10,17 +10,49 @@ final class ScreenshotTests: XCTestCase {
     }
 
     @MainActor func testFirstBlockDemo() {
-        exerciseFirstBlockDemo(extraArguments: [], measure: true)
+        exerciseFirstBlockDemo(appearance: "light", accessibilitySize: false)
     }
 
-    @MainActor func testFirstBlockDemoAtAX5() {
-        exerciseFirstBlockDemo(extraArguments: ["--screenshot-ax5"], measure: false)
+    @MainActor func testFirstBlockDemoAtAX5Light() {
+        exerciseFirstBlockDemo(appearance: "light", accessibilitySize: true)
     }
 
-    @MainActor private func exerciseFirstBlockDemo(extraArguments: [String], measure: Bool) {
+    @MainActor func testFirstBlockDemoAtAX5Dark() {
+        exerciseFirstBlockDemo(appearance: "dark", accessibilitySize: true)
+    }
+
+    @MainActor func testFirstBlockRequiresFreshConsentAfterMinuteChanges() {
         continueAfterFailure = false
         let app = XCUIApplication()
-        app.launchArguments = ["--screenshot-demo"] + extraArguments
+        app.launchArguments = ["--screenshot-demo", "--screenshot-cross-minute"]
+        app.launch()
+
+        let permission = app.buttons["setup-permission"]
+        reveal(permission, in: app)
+        permission.tap()
+        let terms = element("setup-first-run-terms", in: app)
+        XCTAssertTrue(terms.waitForExistence(timeout: 8))
+        XCTAssertTrue(terms.label.contains("毎日 20:00〜21:00"))
+        let start = app.buttons["setup-start"]
+        reveal(start, in: app)
+        start.tap()
+
+        XCTAssertTrue(app.staticTexts["時刻が変わりました。更新した時間を確認して、もう一度押してください。"].exists)
+        XCTAssertTrue(terms.label.contains("21:01まで"))
+        XCTAssertTrue(terms.label.contains("毎日 20:01〜21:01"))
+        XCTAssertTrue(start.isEnabled)
+        XCTAssertFalse(element("home-count", in: app).exists)
+        start.tap()
+        XCTAssertTrue(element("home-count", in: app).waitForExistence(timeout: 8))
+        app.buttons["設定"].tap()
+        XCTAssertTrue(app.buttons["毎日 20:01〜21:01"].waitForExistence(timeout: 8))
+    }
+
+    @MainActor private func exerciseFirstBlockDemo(appearance: String, accessibilitySize: Bool) {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["--screenshot-demo", "--screenshot-appearance", appearance]
+        if accessibilitySize { app.launchArguments.append("--screenshot-ax5") }
         app.launch()
 
         let clock = ContinuousClock()
@@ -31,10 +63,19 @@ final class ScreenshotTests: XCTestCase {
             reveal(control, in: app)
             control.tap()
             taps += 1
+            if identifier == "setup-permission" {
+                if accessibilitySize {
+                    verifyDemoSelection(start: app.buttons["setup-start"], in: app, accessibilitySize: true)
+                } else {
+                    let selected = element("setup-selection-count", in: app)
+                    reveal(selected, in: app)
+                    XCTAssertEqual(selected.label, "選択済み 1件")
+                }
+            }
         }
         XCTAssertTrue(app.staticTexts["shield-title"].waitForExistence(timeout: 8))
         let elapsed = started.duration(to: clock.now)
-        if measure {
+        if !accessibilitySize {
             let measurement = XCTAttachment(string: "初回の制限プレビューまで \(taps)タップ、\(elapsed)")
             measurement.lifetime = .keepAlways
             add(measurement)
@@ -65,10 +106,12 @@ final class ScreenshotTests: XCTestCase {
         app.launch()
 
         let permission = app.buttons["setup-permission"]
+        XCTAssertTrue(element("setup-permission-purpose", in: app).waitForExistence(timeout: 8))
         capture("01-onboarding-permission", appearance, visible: permission)
         permission.tap()
 
         let start = app.buttons["setup-start"]
+        verifyDemoSelection(start: start, in: app, accessibilitySize: false)
         capture("02-onboarding-apps", appearance, visible: start)
         start.tap()
 
@@ -101,16 +144,53 @@ final class ScreenshotTests: XCTestCase {
         XCTAssertTrue(terms.label.contains("¥4,800／年"))
     }
 
+    /// The demo picker shows candidates with their state and count, and cannot start with nothing chosen.
+    @MainActor private func verifyDemoSelection(start: XCUIElement, in app: XCUIApplication, accessibilitySize: Bool) {
+        let row = app.buttons["setup-demo-app-video"]
+        let count = app.staticTexts["setup-selection-count"]
+        XCTAssertTrue(row.waitForExistence(timeout: 8))
+        XCTAssertTrue(row.isHittable)
+        XCTAssertTrue(app.frame.contains(row.frame))
+        XCTAssertTrue(count.isHittable)
+        XCTAssertLessThanOrEqual(row.frame.maxY, count.frame.minY)
+        XCTAssertEqual(row.value as? String, "選択済み")
+        XCTAssertEqual(count.label, "選択済み 1件")
+        XCTAssertTrue(start.isEnabled)
+        row.tap()
+        XCTAssertEqual(row.value as? String, "未選択")
+        XCTAssertEqual(count.label, "選択済み 0件")
+        XCTAssertFalse(start.isEnabled)
+        row.tap()
+        XCTAssertEqual(count.label, "選択済み 1件")
+        XCTAssertTrue(start.isEnabled)
+        let terms = element("setup-first-run-terms", in: app)
+        let footer = app.scrollViews["setup-picker-actions-scroll"]
+        if accessibilitySize, footer.exists {
+            reveal(terms, in: footer)
+        }
+        XCTAssertTrue(terms.isHittable)
+        XCTAssertTrue((footer.exists ? footer.frame : app.frame).contains(terms.frame))
+        XCTAssertTrue(terms.label.contains("今回：今から1時間（21:00まで）"))
+        XCTAssertTrue(terms.label.contains("繰り返し：明日から毎日 20:00〜21:00"))
+        if accessibilitySize, footer.exists {
+            reveal(start, in: footer)
+        }
+        XCTAssertTrue(start.isHittable)
+        XCTAssertTrue((footer.exists ? footer.frame : app.frame).contains(start.frame))
+        XCTAssertTrue(row.isHittable)
+        XCTAssertLessThanOrEqual(row.frame.maxY, start.frame.minY)
+    }
+
     @MainActor private func element(_ identifier: String, in app: XCUIApplication) -> XCUIElement {
         app.descendants(matching: .any).matching(identifier: identifier).firstMatch
     }
 
-    @MainActor private func reveal(_ element: XCUIElement, in app: XCUIApplication, scrollingUp: Bool = false) {
+    @MainActor private func reveal(_ element: XCUIElement, in scrollArea: XCUIElement, scrollingUp: Bool = false) {
         _ = element.waitForExistence(timeout: 2)
         if element.exists && element.isHittable { return }
         for _ in 0..<8 {
-            if scrollingUp { app.swipeDown() }
-            else { app.swipeUp() }
+            if scrollingUp { scrollArea.swipeDown() }
+            else { scrollArea.swipeUp() }
             _ = element.waitForExistence(timeout: 2)
             if element.exists && element.isHittable { return }
         }

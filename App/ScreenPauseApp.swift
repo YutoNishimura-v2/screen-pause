@@ -16,7 +16,8 @@ struct ScreenPauseApp: App {
     @ViewBuilder private var entry: some View {
         #if DEBUG && targetEnvironment(simulator)
         if ProcessInfo.processInfo.arguments.contains("--screenshot-demo") {
-            SetupView(demo: true)
+            SetupView(demo: true, demoConfirmationDelay: ProcessInfo.processInfo.arguments
+                .contains("--screenshot-cross-minute") ? 60 : 0)
                 .preferredColorScheme(screenshotColorScheme)
                 .dynamicTypeSize(ProcessInfo.processInfo.arguments.contains("--screenshot-ax5")
                     ? .accessibility5 : .large)
@@ -71,6 +72,7 @@ private struct StoreKitTestView: View {
 @MainActor
 private struct SetupView: View {
     var demo = false
+    var demoConfirmationDelay: TimeInterval = 0
     private enum Step {
         case permission, schedule, home
     }
@@ -91,6 +93,8 @@ private struct SetupView: View {
     @State private var selection = FamilyActivitySelection()
     @State private var pickerSelection = FamilyActivitySelection()
     @State private var pickerSaveError: String?
+    @State private var firstRunSchedule: WeeklySchedule?
+    @State private var demoSelection: Set<String> = []
     @State private var weekdays = Set(1...7)
     @State private var start = 0
     @State private var end = 0
@@ -209,15 +213,17 @@ private struct SetupView: View {
                     }
                 }
             }
+            VStack(alignment: .leading, spacing: 4) {
+                Text("選んだアプリの制限と利用時間の表示に許可を使います。")
+                Text("記録は端末内に保存します。")
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("setup-permission-purpose")
             Button(setupActionTitle) {
                 Task { await beginSetup() }
             }
             .accessibilityIdentifier("setup-permission")
             .disabled(askingPermission)
-        } footer: {
-            if permissionIssue == nil {
-                Text("選んだアプリの制限と利用時間の表示に許可を使います。記録は端末内に保存します。")
-            }
         }
     }
 
@@ -228,22 +234,47 @@ private struct SetupView: View {
     }
 
     private func openPicker() {
+        // The demo starts with one candidate chosen so the published capture shows a real selection.
+        demoSelection = demo ? [DemoApp.all[0].id] : []
         if step == .home, let saved = snapshot.settings?.selection {
             selection = saved
         }
         pickerSaveError = nil
         pickerSelection = selection
+        firstRunSchedule = step == .permission && !needsAppReselection
+            ? immediateSchedule(at: demo ? demoStart : .now) : nil
         picker = true
+    }
+
+    private struct DemoApp {
+        let id: String
+        let name: String
+        let icon: String
+
+        static let all = [
+            DemoApp(id: "video", name: "動画アプリ", icon: "play.rectangle"),
+            DemoApp(id: "sns", name: "SNSアプリ", icon: "bubble.left.and.bubble.right"),
+            DemoApp(id: "game", name: "ゲーム", icon: "gamecontroller"),
+        ]
     }
 
     private var appPicker: some View {
         NavigationStack {
-            Group {
-                if demo {
-                    Form { Text("選んだアプリの制限を試せます。") }
-                } else {
-                    FamilyActivityPicker(selection: $pickerSelection)
-                }
+            GeometryReader { geometry in
+                pickerCandidates
+                    .safeAreaInset(edge: .bottom, spacing: 0) {
+                        let displayedSchedule = step == .permission && !needsAppReselection ? firstRunSchedule : nil
+                        let actions = pickerActions(firstRunSchedule: displayedSchedule).padding()
+                        ViewThatFits(in: .vertical) {
+                            actions
+                            ScrollView {
+                                actions
+                            }
+                            .accessibilityIdentifier("setup-picker-actions-scroll")
+                        }
+                        .frame(maxHeight: geometry.size.height / 2)
+                        .background(.background)
+                    }
             }
             .navigationTitle("制限するアプリ")
             .navigationBarTitleDisplayMode(.inline)
@@ -252,26 +283,88 @@ private struct SetupView: View {
                     Button("キャンセル") { picker = false }
                 }
             }
-            .safeAreaInset(edge: .bottom) {
-                VStack(spacing: 8) {
-                    if let pickerSaveError {
-                        Text(pickerSaveError).font(.footnote)
-                    } else if step == .permission {
-                        Text(needsAppReselection ? "選んだ対象に元の予定を適用します。"
-                             : "今すぐ始め、毎日この時間帯を制限します。")
-                            .font(.footnote)
-                    }
-                    Button(pickerActionTitle, action: confirmApps)
-                        .frame(minHeight: 44)
-                        .buttonStyle(.borderedProminent)
-                        .accessibilityIdentifier("setup-start")
-                        .disabled(!demo && !ScreenTime.hasApps(pickerSelection))
-                }
-                .padding()
-                .frame(maxWidth: .infinity)
-                .background(.background)
-            }
         }
+    }
+
+    @ViewBuilder private var pickerCandidates: some View {
+        if demo {
+            Form {
+                ForEach(DemoApp.all, id: \.id) { app in
+                    demoAppRow(app)
+                }
+            }
+        } else {
+            FamilyActivityPicker(selection: $pickerSelection)
+        }
+    }
+
+    private func demoAppRow(_ app: DemoApp) -> some View {
+        let selected: Bool = demoSelection.contains(app.id)
+        return Button {
+            if selected { demoSelection.remove(app.id) } else { demoSelection.insert(app.id) }
+        } label: {
+            HStack {
+                Label(app.name, systemImage: app.icon)
+                Spacer()
+                Image(systemName: selected ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(selected ? Color.indigo : Color.secondary)
+                    .accessibilityHidden(true)
+            }
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+        }
+        .foregroundStyle(.primary)
+        .accessibilityValue(selected ? "選択済み" : "未選択")
+        .accessibilityIdentifier("setup-demo-app-\(app.id)")
+    }
+
+    private var pickerSelectionCount: Int {
+        if demo { return demoSelection.count }
+        return pickerSelection.applicationTokens.count + pickerSelection.categoryTokens.count
+    }
+
+    private var canConfirmApps: Bool {
+        demo ? !demoSelection.isEmpty : ScreenTime.hasApps(pickerSelection)
+    }
+
+    private func pickerActions(firstRunSchedule: WeeklySchedule?) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("選択済み \(pickerSelectionCount)件")
+                .font(.headline)
+                .accessibilityIdentifier("setup-selection-count")
+            if let pickerSaveError {
+                Text(pickerSaveError).font(.footnote)
+            }
+            if let firstRunSchedule {
+                firstRunTerms(firstRunSchedule)
+            } else if step == .permission && needsAppReselection {
+                Text("選んだ対象に元の予定を適用します。").font(.footnote)
+            }
+            Button {
+                confirmApps(displayedSchedule: firstRunSchedule)
+            } label: {
+                Text(pickerActionTitle)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, minHeight: 44)
+            }
+            .buttonStyle(.borderedProminent)
+            .accessibilityIdentifier("setup-start")
+            .disabled(!canConfirmApps)
+        }
+    }
+
+    private func firstRunTerms(_ schedule: WeeklySchedule) -> some View {
+        let end = String(format: "%02d:%02d", schedule.end / 60, schedule.end % 60)
+        let endDay = schedule.start > schedule.end ? "翌日" : ""
+        return VStack(alignment: .leading, spacing: 2) {
+            Text("今回：今から1時間（\(endDay)\(end)まで）")
+            Text("繰り返し：明日から\(scheduleLabel(schedule))")
+        }
+        .font(.footnote)
+        .fixedSize(horizontal: false, vertical: true)
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("setup-first-run-terms")
     }
 
     private var pickerActionTitle: String {
@@ -279,11 +372,21 @@ private struct SetupView: View {
         return needsAppReselection ? "元の予定を再開" : "今から1時間の制限を始める"
     }
 
-    private func confirmApps() {
+    private func confirmApps(displayedSchedule: WeeklySchedule?) {
+        guard canConfirmApps else { return }
+        let confirmedAt = demo ? demoStart.addingTimeInterval(demoConfirmationDelay) : .now
+        if let displayedSchedule {
+            let currentSchedule = immediateSchedule(at: confirmedAt)
+            guard displayedSchedule == currentSchedule else {
+                firstRunSchedule = currentSchedule
+                pickerSaveError = "時刻が変わりました。更新した時間を確認して、もう一度押してください。"
+                return
+            }
+        }
         selection = pickerSelection
         if step == .permission || step == .home {
             pickerSaveError = nil
-            save()
+            save(firstRunSchedule: displayedSchedule, at: confirmedAt)
             guard pickerSaveError == nil, step == .home else { return }
         }
         picker = false
@@ -325,7 +428,7 @@ private struct SetupView: View {
             }
             Section {
                 Button("すべての予定に使うアプリやカテゴリを変更", action: openPicker)
-                Button("変更を保存", action: save)
+                Button("変更を保存") { save() }
                     .disabled(!draft.isValid || !ScreenTime.hasApps(selection))
                 Button("キャンセル") {
                     step = .home
@@ -344,9 +447,11 @@ private struct SetupView: View {
         let strict = snapshot.isStrict(at: now)
         let count = snapshot.progress.count(at: now, calendar: calendar)
         let blocking = snapshot.isBlocking(at: now)
-        let countDetail = blocking
-            ? "対象アプリを開き「\(ShieldAppearance.primary)」で1回。"
-            : "制限中に「\(ShieldAppearance.primary)」で1回。"
+        let countDetail = demo
+            ? "制限画面のプレビューで「\(ShieldAppearance.primary)」を試せます。"
+            : (blocking
+                ? "対象アプリを開き「\(ShieldAppearance.primary)」で1回。"
+                : "制限中に「\(ShieldAppearance.primary)」で1回。")
 
         return Group {
             Section {
@@ -383,7 +488,7 @@ private struct SetupView: View {
                         .font(.system(size: countSize, weight: .semibold))
                         .monospacedDigit()
                     if count == 0 {
-                        Text(countDetail).font(.footnote).foregroundStyle(.secondary)
+                        Text(countDetail).font(.subheadline)
                     }
                 }
                 .padding(.vertical, 12)
@@ -685,15 +790,17 @@ private struct SetupView: View {
         step = .schedule
     }
 
-    private func save() {
+    private func save(firstRunSchedule: WeeklySchedule? = nil, at date: Date = .now) {
         if !demo, authorization.authorizationStatus != .approved {
             showPermissionIssue(.denied)
             return
         }
         guard demo || ScreenTime.hasApps(selection) else { return }
 
-        let firstStart = demo ? demoStart : .now
-        let schedule = step == .schedule ? draft : snapshot.settings?.schedule ?? immediateSchedule(at: firstStart)
+        guard let schedule = step == .schedule ? draft : snapshot.settings?.schedule ?? firstRunSchedule else {
+            pickerSaveError = "制限の予定を読み込めませんでした。"
+            return
+        }
         var settings = BlockSettings(schedule: schedule, selection: selection)
         if let existing = snapshot.settings {
             var schedules = existing.schedules
@@ -704,7 +811,7 @@ private struct SetupView: View {
             settings.setSchedules(schedules)
         }
         if demo {
-            now = firstStart
+            now = date
             snapshot.settings = settings
             snapshot.baselineStart = now.addingTimeInterval(-14 * 86_400)
             snapshot.proAccess = ProAccess(expires: nil, willAutoRenew: nil)

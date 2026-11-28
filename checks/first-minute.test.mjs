@@ -27,22 +27,57 @@ test('permission recovery shows Settings only for denied or revoked access', () 
 
 test('first save failure stays in the picker with its selection and retry feedback', () => {
   const picker = section(app, 'private var appPicker:', 'private func setupHeading');
-  assert.match(picker, /if let pickerSaveError \{\s+Text\(pickerSaveError\)/);
-  assert.match(picker, /selection = pickerSelection\s+if step == \.permission \|\| step == \.home \{\s+pickerSaveError = nil\s+save\(\)\s+guard pickerSaveError == nil, step == \.home else \{ return \}\s+\}\s+picker = false/);
-  const save = section(app, 'private func save()', 'private var demoStart');
+  assert.match(picker, /if let pickerSaveError \{\s+Text\(pickerSaveError\)\.font\(\.footnote\)\s+\}\s+if let firstRunSchedule \{\s+firstRunTerms\(firstRunSchedule\)/);
+  assert.match(picker, /Button \{\s+confirmApps\(displayedSchedule: firstRunSchedule\)\s+\} label: \{\s+Text\(pickerActionTitle\)(?:(?!\.disabled)[\s\S])*\.disabled\(!canConfirmApps\)/);
+  assert.match(picker, /selection = pickerSelection\s+if step == \.permission \|\| step == \.home \{\s+pickerSaveError = nil\s+save\(firstRunSchedule: displayedSchedule, at: confirmedAt\)\s+guard pickerSaveError == nil, step == \.home else \{ return \}\s+\}\s+picker = false/);
+  const save = section(app, 'private func save(', 'private var demoStart');
   assert.match(save, /step = \.home\s+\} catch \{\s+if \(step == \.permission \|\| step == \.home\), picker \{\s+pickerSaveError = needsAppReselection\s+\? "元の予定で制限を再開できませんでした。もう一度お試しください。"\s+: "制限を設定できませんでした。もう一度お試しください。"\s+\} else \{/);
   const open = section(app, 'private func openPicker()', 'private var appPicker:');
-  assert.match(open, /if step == \.home, let saved = snapshot\.settings\?\.selection \{\s+selection = saved\s+\}\s+pickerSaveError = nil\s+pickerSelection = selection\s+picker = true/);
+  assert.match(open, /pickerSaveError = nil\s+pickerSelection = selection\s+firstRunSchedule = step == \.permission && !needsAppReselection\s+\? immediateSchedule\(at: demo \? demoStart : \.now\) : nil\s+picker = true/);
+});
+
+test('first-run confirmation refreshes stale terms before passing the displayed schedule to install', () => {
+  const picker = section(app, 'private func pickerActions(', 'private func setupHeading');
+  assert.match(picker, /firstRunTerms\(firstRunSchedule\)[\s\S]*confirmApps\(displayedSchedule: firstRunSchedule\)/);
+  assert.match(picker, /let currentSchedule = immediateSchedule\(at: confirmedAt\)\s+guard displayedSchedule == currentSchedule else \{\s+firstRunSchedule = currentSchedule\s+pickerSaveError = "[^"]+"\s+return\s+\}/);
+  const save = section(app, 'private func save(', 'private var demoStart');
+  assert.match(save, /snapshot\.settings\?\.schedule \?\? firstRunSchedule else \{[^}]+\}\s+var settings = BlockSettings\(schedule: schedule, selection: selection\)/);
+  assert.doesNotMatch(save, /immediateSchedule\(/);
+  assert.match(app, /SetupView\(demo: true, demoConfirmationDelay:[\s\S]*?\.contains\("--screenshot-cross-minute"\) \? 60 : 0\)/);
+  assert.match(picker, /demoStart\.addingTimeInterval\(demoConfirmationDelay\)/);
+  const ui = read('../ScreenshotTests/ScreenshotTests.swift');
+  const rollover = section(ui, 'func testFirstBlockRequiresFreshConsentAfterMinuteChanges', 'private func exerciseFirstBlockDemo');
+  assert.match(rollover, /--screenshot-cross-minute/);
+  assert.match(rollover, /20:00〜21:00[\s\S]*start\.tap\(\)[\s\S]*20:01〜21:01[\s\S]*XCTAssertFalse\(element\("home-count", in: app\)\.exists\)[\s\S]*start\.tap\(\)[\s\S]*app\.buttons\["毎日 20:01〜21:01"\]/);
+});
+
+test('the system picker and fixture reserve space for candidates and verify AX5 in both appearances', () => {
+  const container = section(app, 'private var appPicker:', '@ViewBuilder private var pickerCandidates:');
+  assert.match(container, /pickerCandidates\s+\.safeAreaInset\(edge: \.bottom, spacing: 0\)/);
+  assert.match(container, /ViewThatFits\(in: \.vertical\) \{\s+actions\s+ScrollView \{\s+actions[\s\S]*\.frame\(maxHeight: geometry\.size\.height \/ 2\)/);
+  const candidates = section(app, '@ViewBuilder private var pickerCandidates:', 'private func demoAppRow');
+  assert.match(candidates, /if demo \{[\s\S]*demoAppRow\(app\)[\s\S]*\} else \{\s+FamilyActivityPicker\(selection: \$pickerSelection\)/);
+  const ui = read('../ScreenshotTests/ScreenshotTests.swift');
+  for (const appearance of ['light', 'dark']) {
+    assert.ok(ui.includes('exerciseFirstBlockDemo(appearance: "' + appearance + '", accessibilitySize: true)'));
+  }
+  assert.match(ui, /if accessibilitySize \{ app\.launchArguments\.append\("--screenshot-ax5"\) \}/);
+  assert.match(ui, /if accessibilitySize \{\s+verifyDemoSelection\(/);
+  const selection = section(ui, 'private func verifyDemoSelection', 'private func element(');
+  for (const control of ['row', 'terms', 'start']) {
+    assert.ok(selection.includes('XCTAssertTrue(' + control + '.isHittable)'));
+  }
+  assert.match(selection, /XCTAssertLessThanOrEqual\(row\.frame\.maxY, start\.frame\.minY\)/);
 });
 
 test('home app picker loads saved selection, labels confirm action, and persists via save()', () => {
   const open = section(app, 'private func openPicker()', 'private var appPicker:');
   assert.match(open, /if step == \.home, let saved = snapshot\.settings\?\.selection \{\s+selection = saved\s+\}/);
-  const title = section(app, 'private var pickerActionTitle:', 'private func confirmApps()');
+  const title = section(app, 'private var pickerActionTitle:', 'private func confirmApps(');
   assert.match(title, /if step == \.schedule \|\| step == \.home \{ return "選択を反映" \}/);
-  const confirm = section(app, 'private func confirmApps()', 'private func setupHeading');
-  assert.match(confirm, /step == \.permission \|\| step == \.home[\s\S]*save\(\)[\s\S]*pickerSaveError == nil/);
-  const save = section(app, 'private func save()', 'private var demoStart');
+  const confirm = section(app, 'private func confirmApps(', 'private func setupHeading');
+  assert.match(confirm, /step == \.permission \|\| step == \.home[\s\S]*save\(firstRunSchedule: displayedSchedule, at: confirmedAt\)[\s\S]*pickerSaveError == nil/);
+  const save = section(app, 'private func save(', 'private var demoStart');
   assert.match(save, /\(step == \.permission \|\| step == \.home\), picker/);
   assert.match(save, /try ScreenTime\.install\(settings/);
 });
@@ -52,7 +87,7 @@ test('an active limit gives a zero-count user the real first-stop action', () =>
   const shield = read('../Shared/ShieldAppearance.swift');
   assert.match(shield, /static let primary = "開かずに戻る"/);
   assert.match(home, /let blocking = snapshot\.isBlocking\(at: now\)/);
-  assert.match(home, /let countDetail = blocking\s+\? "対象アプリを開き「\\\(ShieldAppearance\.primary\)」で1回。"\s+: "制限中に「\\\(ShieldAppearance\.primary\)」で1回。"/);
+  assert.match(home, /: \(blocking\s+\? "対象アプリを開き「\\\(ShieldAppearance\.primary\)」で1回。"\s+: "制限中に「\\\(ShieldAppearance\.primary\)」で1回。"\)/);
   assert.match(home, /if count == 0 \{\s+Text\(countDetail\)/);
   assert.match(home, /\.accessibilityHint\(count == 0 \? countDetail : ""\)/);
 });
@@ -108,7 +143,7 @@ test('the fifth-stop prompt uses the saved daily count without overriding custom
 test('schedule edit explains the specific cause when saving is disabled', () => {
   const editor = section(app, 'private var scheduleForm:', 'private var homeForm:');
   assert.match(editor, /if weekdays\.isEmpty \{\s+Text\("制限する曜日を1つ以上選んでください。"\)\s+\} else if !draft\.isValid \{\s+Text\("開始から終了まで15分以上にしてください。"\)/);
-  assert.match(editor, /Button\("変更を保存", action: save\)\s+\.disabled\(!draft\.isValid \|\| !ScreenTime\.hasApps\(selection\)\)/);
+  assert.match(editor, /Button\("変更を保存"\) \{ save\(\) \}\s+\.disabled\(!draft\.isValid \|\| !ScreenTime\.hasApps\(selection\)\)/);
 });
 
 test('overnight schedules identify the end day in both the list and the editor', () => {
