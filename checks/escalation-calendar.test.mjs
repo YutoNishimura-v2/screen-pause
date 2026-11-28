@@ -280,7 +280,7 @@ test('the AX5 first-block demo reveals lazy Form rows before using them', () => 
   const firstBlock = section(screenshotTests, 'private func exerciseFirstBlockDemo(', 'private func captureScreens(');
   assert.match(firstBlock, /for identifier in \["setup-permission", "setup-start", "home-shield"\] \{\s+let control = element\(identifier, in: app\)\s+reveal\(control, in: app\)\s+control\.tap\(\)/,
     'the first-block loop lets reveal scroll before requiring the control to exist');
-  assert.match(firstBlock, /stop\.tap\(\)\s+let count = element\("home-count", in: app\)\s+reveal\(count, in: app, scrollingUp: true\)\s+XCTAssertEqual\(count\.label,/,
+  assert.match(firstBlock, /stop\.tap\(\)\s+reveal\(count, in: app, scrollingUp: true\)\s+XCTAssertEqual\(count\.label,/,
     'returning home scrolls up to the count before reading its label');
 
   const picker = section(screenshotTests, 'private func verifyDemoSelection(', 'private func element(');
@@ -446,10 +446,35 @@ test('the wait screen shows one calm sentence with the seconds and the app runs 
   assert.match(app, /TimelineView\(\.periodic\(from: pending\.date, by: 1\)\)/);
   assert.match(app, /requestedAt: pending\.date, now: context\.date, wait: pending\.wait/);
   const demo = read('../App/ShieldDemoView.swift');
-  assert.match(demo, /TimelineView\(\.periodic\(from: requestedAt, by: 1\)\)/);
+  assert.match(demo, /TimelineView\(\.periodic\(from: requestedAt \?\? \.now, by: 1\)\)/);
   assert.match(demo, /switch PauseWindow\.pendingAction\([\s\S]*case \.unlock:[\s\S]*dismiss\(\)[\s\S]*case \.restart:[\s\S]*requestedAt = now/);
-  assert.match(demo, /case \.restart:\s+EmptyView\(\)/);
+  assert.match(demo, /\.disabled\(isWaiting\(phase\)\)/, 'an early second press cannot open the app');
+  assert.match(demo, /case \.restart where pause\.seconds > 0:\s+Text\(ShieldAppearance\.unlockInstructions\)/);
+  assert.match(shield, /secondaryButtonLabel: canOpen \? \.init\(\s+text: waitingForApp \? ShieldAppearance\.unlock/);
   assert.match(read('../Shared/Domain.swift'), /return max\(0, Int\(ceil\(remaining\)\)\)/);
+});
+
+test('the rendered pause mark and main button contrast with both shield backgrounds', () => {
+  const appearance = read('../Shared/ShieldAppearance.swift');
+  const swatches = [...appearance.matchAll(
+    /UIColor\(red: (\d+\.0) \/ 255, green: (\d+\.0) \/ 255, blue: (\d+\.0) \/ 255, alpha: 1\)/g
+  )].map(([, ...rgb]) => {
+    const linear = rgb.map(value => {
+      const channel = Number(value) / 255;
+      return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2];
+  });
+  assert.equal(swatches.length, 2);
+  const [button, mark] = swatches;
+  assert.ok(1.05 / (button + 0.05) >= 4.5, 'white button text');
+  for (const shade of [mark, button]) {
+    assert.ok(1.05 / (shade + 0.05) >= 3, 'light background');
+    assert.ok((shade + 0.05) / 0.05 >= 3, 'dark background');
+  }
+  assert.match(appearance, /UIImage\(systemName: "pause\.fill"[\s\S]*renderingMode: \.alwaysOriginal/);
+  assert.match(read('../App/ShieldDemoView.swift'), /if let icon = ShieldAppearance\.icon \{\s+Image\(uiImage: icon\)\s+\.renderingMode\(\.original\)/);
+  assert.match(read('../Shield/Shield.swift'), /icon: ShieldAppearance\.icon/);
 });
 
 test('overnight pending waits agree between home and shield action across midnight', () => {
@@ -482,7 +507,51 @@ test('overnight pending waits agree between home and shield action across midnig
   assert.match(activeFn, /PauseWindow\.isPendingActive\(requestedAt: pending\.date, now: now, wait: pending\.wait\)/);
   assert.match(read('../Action/Action.swift'), /let seconds = state\.pause\(at: now, calendar: calendar\)\.seconds/);
   assert.match(read('../Action/Action.swift'), /pending\.wait == Double\(seconds\)/);
-  assert.match(read('../Shield/Shield.swift'), /state\?\.activePending\(at: now\)/);
+  assert.match(read('../Shield/Shield.swift'), /state\?\.activePending\(at: now, calendar: calendar\)/);
+});
+
+test('an expired stored permit does not hide the system shield retry for another app', () => {
+  const shield = read('../Shield/Shield.swift');
+  const action = read('../Action/Action.swift');
+  const state = read('../Shared/ScreenTime.swift');
+  const domain = read('../Shared/Domain.swift');
+  const now = Date.parse('2026-11-28T20:10:00+09:00');
+  const access = Number(domain.match(/static let access: TimeInterval = (\d+)/)?.[1]);
+  assert.equal(access, 300);
+  assert.match(state, /if let permit, !PauseWindow\.isOpen\(unlockedAt: permit\.date, now: now\) \{\s+self\.permit = nil/);
+  assert.match(action, /state\.reconcile\(at: now, calendar: calendar\)[\s\S]*?guard state\.isBlocking[\s\S]*?case \.secondaryButtonPressed:\s+guard state\.permit == nil, !state\.isStrict/);
+  for (const [age, expected] of [[299, false], [300, true], [301, true]]) {
+    // An active, non-strict block shields app B while storage still holds app A's permit.
+    const storedPermit = { app: 'A', date: now - age * 1000 };
+    const actionCanOpen = now >= storedPermit.date + access * 1000;
+    const shieldReconciles = /var state = try\? ScreenTime\.transaction \{ \$0 \}[\s\S]*?state\?\.reconcile\(at: now, calendar: calendar\)[\s\S]*?let canOpen/.test(shield);
+    const shieldCanOpen = shieldReconciles && actionCanOpen;
+    assert.equal(actionCanOpen, expected, `action at ${age}s`);
+    assert.equal(shieldCanOpen, expected, `shield for app B at ${age}s`);
+  }
+  assert.match(shield, /let canOpen = token != nil && state\?\.isBlocking\(at: now, calendar: calendar\) == true && !strict && state\?\.permit == nil/);
+  assert.match(shield, /secondaryButtonLabel: canOpen \?/);
+});
+
+test('the system shield pending copy stays valid when a five-minute wait becomes eligible', () => {
+  const shield = read('../Shield/Shield.swift');
+  const appearance = read('../Shared/ShieldAppearance.swift');
+  const action = read('../Action/Action.swift');
+  const requestedAt = Date.parse('2026-11-28T20:00:00+09:00');
+  const wait = 300;
+  assert.match(action, /Date\.now >= request\.date\.addingTimeInterval\(request\.wait\)/);
+  assert.deepEqual(pendingAction(requestedAt, requestedAt, wait), { type: 'waiting', remaining: 300 });
+  assert.deepEqual(pendingAction(requestedAt, requestedAt + wait * 1000, wait), { type: 'unlock' });
+
+  const pendingBranch = section(shield, 'else if state?.unlockFailed == true', 'else if state?.permit');
+  const instruction = pendingBranch.match(/subtitle = ShieldAppearance\.(\w+)\s*\}/)?.[1];
+  assert.equal(instruction, 'unlockInstructions', 'the OS keeps the same configuration across the ready boundary');
+  const accessMinutes = accessSeconds / 60;
+  const configuredText = appearance.match(/static let unlockInstructions = "([^\n"]+)"/)?.[1]
+    ?.replace('\\(accessMinutes)', String(accessMinutes));
+  assert.equal(configuredText, '待機後にもう一度押すと、5分だけ開けます。');
+  assert.match(shield, /let pending = state\?\.activePending\(at: now, calendar: calendar\)/);
+  assert.match(shield, /text: waitingForApp \? ShieldAppearance\.unlock/);
 });
 
 test('preview expiry at wait plus access matches the button restart behavior', () => {

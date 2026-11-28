@@ -1,3 +1,4 @@
+import Foundation
 import ManagedSettings
 import ManagedSettingsUI
 import UIKit
@@ -12,13 +13,17 @@ final class Shield: ShieldConfigurationDataSource {
     }
 
     private func configuration(for token: ApplicationToken?) -> ShieldConfiguration {
-        let state = try? ScreenTime.transaction { $0 }
+        var state = try? ScreenTime.transaction { $0 }
         let now = Date.now
-        let strict = state?.isStrict(at: now) == true
-        let pause = state?.pause(at: now) ?? .standard
-        // Shield extensions cannot run timers, so the escalating wait is a static label here;
-        // the live countdown is rendered by the app (SetupView.homeForm and ShieldDemoView).
-        let attempt = (state?.progress.unlockCount(at: now, calendar: .current) ?? 0) + 1
+        let calendar = Calendar.current
+        // Match the action's eligibility even when the relock callback has not refreshed storage.
+        state?.reconcile(at: now, calendar: calendar)
+        let strict = state?.isStrict(at: now, calendar: calendar) == true
+        let pause = state?.pause(at: now, calendar: calendar) ?? .standard
+        let pending = state?.activePending(at: now, calendar: calendar)
+        let waitingForApp = pending != nil && pending?.app == token
+        let canOpen = token != nil && state?.isBlocking(at: now, calendar: calendar) == true && !strict && state?.permit == nil
+        let attempt = (state?.progress.unlockCount(at: now, calendar: calendar) ?? 0) + 1
         let showsAttempt = pause.isEscalating && !strict && state?.unlockFailed != true
         var subtitle: String
         if state == nil {
@@ -27,13 +32,17 @@ final class Shield: ShieldConfigurationDataSource {
             subtitle = "制限時間が終わるまで、このアプリは開けません。"
         } else if state?.unlockFailed == true {
             subtitle = "一時解除できませんでした。もう一度お試しください。"
-        } else if let pending = state?.activePending(at: now), pending.app == token {
-            subtitle = "ひと呼吸。時間が過ぎたら、もう一度押せます。"
+        } else if waitingForApp {
+            // iOS can keep this configuration on screen across the wait boundary.
+            subtitle = ShieldAppearance.unlockInstructions
         } else if state?.permit != nil {
             subtitle = "別のアプリを一時解除しています。"
         } else {
-            let count = state?.progress.count(at: now, calendar: .current) ?? 0
+            let count = state?.progress.count(at: now, calendar: calendar) ?? 0
             subtitle = pause.message.isEmpty ? ShieldAppearance.stopPrompt(count: count) : pause.message
+            if canOpen && pause.seconds > 0 {
+                subtitle += "\n" + ShieldAppearance.unlockInstructions
+            }
         }
         if showsAttempt, state?.permit == nil {
             subtitle = ShieldAppearance.attemptWaitLabel(attempt: attempt, seconds: pause.seconds) + "\n" + subtitle
@@ -42,12 +51,13 @@ final class Shield: ShieldConfigurationDataSource {
             backgroundColor: .systemBackground,
             icon: ShieldAppearance.icon,
             title: .init(text: ShieldAppearance.title, color: .label),
-            subtitle: .init(text: subtitle, color: .secondaryLabel),
+            subtitle: .init(text: subtitle, color: .label),
             primaryButtonLabel: .init(text: ShieldAppearance.primary, color: .white),
             primaryButtonBackgroundColor: ShieldAppearance.tint,
-            secondaryButtonLabel: strict ? nil : token.map {
-                _ in .init(text: ShieldAppearance.secondary(seconds: pause.seconds), color: .label)
-            }
+            secondaryButtonLabel: canOpen ? .init(
+                text: waitingForApp ? ShieldAppearance.unlock : ShieldAppearance.secondary(seconds: pause.seconds),
+                color: .label
+            ) : nil
         )
     }
 }

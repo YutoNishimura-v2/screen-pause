@@ -13,6 +13,10 @@ final class ScreenshotTests: XCTestCase {
         exerciseFirstBlockDemo(appearance: "light", accessibilitySize: false)
     }
 
+    @MainActor func testFirstBlockDemoInDark() {
+        exerciseFirstBlockDemo(appearance: "dark", accessibilitySize: false)
+    }
+
     @MainActor func testFirstBlockDemoAtAX5Light() {
         exerciseFirstBlockDemo(appearance: "light", accessibilitySize: true)
     }
@@ -88,12 +92,33 @@ final class ScreenshotTests: XCTestCase {
         XCTAssertEqual(stop.label, "開かずに戻る")
         let open = app.buttons["shield-open"]
         reveal(open, in: app)
-        XCTAssertEqual(open.label, "10秒待って開く")
+        XCTAssertEqual(open.label, "10秒の待機を始める")
         open.tap()
-        XCTAssertTrue(open.exists)
+        let waiting = app.staticTexts["shield-wait-status"]
+        XCTAssertTrue(waiting.waitForExistence(timeout: 4))
+        XCTAssertTrue(waiting.label.contains("あと"))
+        XCTAssertEqual(open.label, "待機中")
+        XCTAssertFalse(open.isEnabled)
+        let ready = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "label == %@", "5分だけ開く"), object: open
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 15), .completed)
+        reveal(open, in: app)
+        XCTAssertTrue(open.isEnabled)
+        open.tap()
+        let count = element("home-count", in: app)
+        reveal(count, in: app, scrollingUp: true)
+        XCTAssertEqual(count.label, "今日、開かずに戻れた回数、0回")
+
+        let shield = element("home-shield", in: app)
+        reveal(shield, in: app)
+        shield.tap()
+        reveal(open, in: app)
+        XCTAssertEqual(open.label, "10秒の待機を始める")
+        open.tap()
+        XCTAssertTrue(waiting.waitForExistence(timeout: 4))
         reveal(stop, in: app, scrollingUp: true)
         stop.tap()
-        let count = element("home-count", in: app)
         reveal(count, in: app, scrollingUp: true)
         XCTAssertEqual(count.label, "今日、開かずに戻れた回数、1回")
     }
@@ -122,6 +147,16 @@ final class ScreenshotTests: XCTestCase {
         let shield = element("home-shield", in: app)
         reveal(shield, in: app)
         shield.tap()
+        let stop = app.buttons["shield-stop"]
+        let open = app.buttons["shield-open"]
+        XCTAssertTrue(stop.waitForExistence(timeout: 8))
+        XCTAssertTrue(stop.isHittable)
+        XCTAssertTrue(open.isHittable)
+        XCTAssertTrue(app.frame.contains(stop.frame))
+        XCTAssertTrue(app.frame.contains(open.frame))
+        XCTAssertLessThanOrEqual(stop.frame.maxY, open.frame.minY)
+        XCTAssertEqual(stop.label, "開かずに戻る")
+        XCTAssertEqual(open.label, "10秒の待機を始める")
         capture("05-shield-preview", appearance, visible: app.staticTexts["shield-title"])
         app.navigationBars.buttons.firstMatch.tap()
 

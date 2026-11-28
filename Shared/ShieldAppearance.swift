@@ -2,13 +2,21 @@ import UIKit
 
 enum ShieldAppearance {
     static let title = "今、開きますか？"
-    static let subtitle = "ゆっくりひと呼吸。開かずに戻ると、今日の回数に加わります。"
+    static let subtitle = "戻ると今日の記録に1回。"
     // iOS uses these visible labels for the system-rendered buttons.
     static let primary = "開かずに戻る"
-    static let tint = UIColor.systemIndigo
-    static let icon = UIImage(systemName: "pause.circle", withConfiguration:
+    // Fixed (not dynamic) colours: the shield image and button are resolved once, so each
+    // purple from the adopted app icon must read on both the white and black backgrounds.
+    static let tint = UIColor(red: 88.0 / 255, green: 86.0 / 255, blue: 214.0 / 255, alpha: 1)
+    static let icon = UIImage(systemName: "pause.fill", withConfiguration:
         UIImage.SymbolConfiguration(pointSize: 56, weight: .regular))?
-        .withTintColor(.label, renderingMode: .alwaysOriginal)
+        .withTintColor(UIColor(red: 101.0 / 255, green: 98.0 / 255, blue: 232.0 / 255, alpha: 1),
+                       renderingMode: .alwaysOriginal)
+
+    private static let accessMinutes = Int(PauseWindow.access) / 60
+    static let unlock = "\(accessMinutes)分だけ開く"
+    static let waiting = "待機中"
+    static let unlockInstructions = "待機後にもう一度押すと、\(accessMinutes)分だけ開けます。"
 
     static func stopPrompt(count: Int) -> String {
         switch count {
@@ -19,7 +27,7 @@ enum ShieldAppearance {
     }
 
     static func secondary(seconds: Int) -> String {
-        seconds == 0 ? "そのまま開く" : "\(seconds)秒待って開く"
+        seconds == 0 ? unlock : "\(seconds)秒の待機を始める"
     }
 
     /// The escalating wait for today's Nth unlock, e.g. 「今日 3回目・40秒」.

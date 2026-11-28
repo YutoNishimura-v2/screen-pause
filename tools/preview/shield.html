@@ -13,6 +13,8 @@
       --secondary: rgba(60, 60, 67, 0.6);
       --separator: rgba(60, 60, 67, 0.2);
       --indigo: #5856d6;
+      --shield-tint: #5856d6;
+      --shield-mark: #6562e8;
     }
     * { box-sizing: border-box; }
     html, body {
@@ -67,7 +69,7 @@
     .pause-icon {
       width: 64px;
       height: 64px;
-      color: var(--label);
+      color: var(--shield-mark);
     }
     .shield-title {
       margin: 0;
@@ -77,7 +79,7 @@
     }
     .shield-subtitle {
       margin: 0;
-      color: var(--secondary);
+      color: var(--label);
       font-size: 17px;
     }
     .primary-btn {
@@ -88,7 +90,7 @@
       min-height: 50px;
       padding: 12px 16px;
       border-radius: 12px;
-      background: var(--indigo);
+      background: var(--shield-tint);
       color: #ffffff;
       font-size: 17px;
       font-weight: 600;
@@ -99,8 +101,9 @@
       justify-content: center;
       min-height: 44px;
       padding: 8px 16px;
-      color: var(--indigo);
+      color: var(--label);
       font-size: 17px;
+      font-weight: 600;
     }
   </style>
 </head>
@@ -118,14 +121,14 @@
 
   <main>
     <svg class="pause-icon" viewBox="0 0 64 64" aria-hidden="true">
-      <circle cx="32" cy="32" r="27" fill="none" stroke="currentColor" stroke-width="3.2"></circle>
-      <line x1="25.5" y1="21" x2="25.5" y2="43" stroke="currentColor" stroke-width="4.2" stroke-linecap="round"></line>
-      <line x1="38.5" y1="21" x2="38.5" y2="43" stroke="currentColor" stroke-width="4.2" stroke-linecap="round"></line>
+      <rect x="17" y="12" width="11" height="40" rx="3" fill="currentColor"></rect>
+      <rect x="36" y="12" width="11" height="40" rx="3" fill="currentColor"></rect>
     </svg>
     <h2 class="shield-title">今、開きますか？</h2>
-    <p class="shield-subtitle">ゆっくりひと呼吸。開かずに戻ると、今日の回数に加わります。</p>
+    <p class="shield-subtitle">戻ると今日の記録に1回。</p>
     <div class="primary-btn">開かずに戻る</div>
-    <div class="secondary-btn">10秒待って開く</div>
+    <div class="secondary-btn">10秒の待機を始める</div>
+    <p class="shield-subtitle">待機後にもう一度押すと、5分だけ開けます。</p>
   </main>
 </body>
 </html>

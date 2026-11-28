@@ -135,7 +135,7 @@ test('the fifth-stop prompt uses the saved daily count without overriding custom
   const live = read('../Shield/Shield.swift');
   const demo = read('../App/ShieldDemoView.swift');
   assert.match(appearance, /case 4: return "今日は4回戻れました。開かずに戻ると5回目です。"\s+case 5: return "今日は5回、開かずに戻れました。"\s+default: return subtitle/);
-  assert.match(live, /let count = state\?\.progress\.count\(at: now, calendar: \.current\) \?\? 0\s+subtitle = pause\.message\.isEmpty \? ShieldAppearance\.stopPrompt\(count: count\) : pause\.message/);
+  assert.match(live, /let count = state\?\.progress\.count\(at: now, calendar: calendar\) \?\? 0\s+subtitle = pause\.message\.isEmpty \? ShieldAppearance\.stopPrompt\(count: count\) : pause\.message/);
   assert.match(app, /ShieldDemoView\(count: count\) \{/);
   assert.match(demo, /Text\(ShieldAppearance\.stopPrompt\(count: count\)\)/);
 });
