@@ -28,7 +28,6 @@ final class ScreenshotTests: XCTestCase {
         var taps = 0
         for identifier in ["setup-permission", "setup-start", "home-shield"] {
             let control = element(identifier, in: app)
-            XCTAssertTrue(control.waitForExistence(timeout: 8), identifier)
             reveal(control, in: app)
             control.tap()
             taps += 1
@@ -54,7 +53,7 @@ final class ScreenshotTests: XCTestCase {
         reveal(stop, in: app, scrollingUp: true)
         stop.tap()
         let count = element("home-count", in: app)
-        XCTAssertTrue(count.waitForExistence(timeout: 8))
+        reveal(count, in: app, scrollingUp: true)
         XCTAssertEqual(count.label, "今日、開かずに戻れた回数、1回")
     }
 
@@ -107,12 +106,15 @@ final class ScreenshotTests: XCTestCase {
     }
 
     @MainActor private func reveal(_ element: XCUIElement, in app: XCUIApplication, scrollingUp: Bool = false) {
-        for _ in 0..<4 {
-            if element.isHittable { return }
+        _ = element.waitForExistence(timeout: 2)
+        if element.exists && element.isHittable { return }
+        for _ in 0..<8 {
             if scrollingUp { app.swipeDown() }
             else { app.swipeUp() }
+            _ = element.waitForExistence(timeout: 2)
+            if element.exists && element.isHittable { return }
         }
-        XCTAssertTrue(element.isHittable)
+        XCTFail("Could not reveal \(element)")
     }
 
     @MainActor private func capture(_ name: String, _ appearance: String, visible element: XCUIElement) {
