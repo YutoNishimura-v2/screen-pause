@@ -26,7 +26,7 @@
 
 - `01-onboarding-permission` と `02-onboarding-apps` は初回案内と対象選択。
 - `04-home`、`05-shield-preview`、`06-report` は初日の回数、制限画面のプレビュー、無料の利用時間レポート。
-- `07-paywall` は購入条件、`08-paywall-value` は価格より先に表示する週比較と連続日数。
+- `07-paywall` は選択中の料金・無料期間・自動更新と購入ボタン、`08-paywall-value` は2つ目の予定の例と月額・年額。
 
 ## 実機確認
 

@@ -102,22 +102,28 @@ test('the paywall states the free report boundary before plan prices', () => {
 test('partial StoreKit results select a purchasable plan and hide unpriced choices', () => {
   const form = section(paywall, 'Form {', '.navigationTitle');
   assert.match(form, /ForEach\(availablePlans\) \{ option in/);
-  assert.match(form, /if demo \|\| products\[selected\] != nil \{/);
+  assert.match(form, /if demo \|\| \(!loading && products\[selected\] != nil\) \{/);
   assert.match(paywall, /var availablePlans: \[ProProduct\] \{\s+ProProduct\.allCases\.filter \{ demo \|\| products\[\$0\] != nil \}\s+\}/);
   const load = section(paywall, 'private func load() async', 'private func buy(');
-  assert.match(load, /products = Dictionary[\s\S]+?if !availablePlans\.contains\(selected\), let fallback = availablePlans\.first \{\s+selected = fallback\s+\}/);
-  assert.match(load, /if products\.count < ProProduct\.allCases\.count \{ message =/);
-  assert.match(form, /Button\("プランを再読み込み"\) \{ Task \{ await load\(\) \} \}/);
+  assert.match(load, /products = Dictionary[\s\S]+?else if !availablePlans\.contains\(selected\), let fallback = availablePlans\.first \{\s+selectPlan\(fallback\)\s+\}/);
+  assert.match(load, /if products\.count < ProProduct\.allCases\.count \{ loadMessage =/);
+  assert.match(form, /Button\("プランを再読み込み"\) \{\s+Task \{\s+guard !loading, !busy else \{ return \}\s+await load\(\)/);
 });
 
 test('a reload restores the yearly default and keeps a plan explicitly chosen by the user', () => {
   const load = section(paywall, 'private func load() async', 'private func buy(');
   const form = section(paywall, 'Form {', '.navigationTitle');
-  assert.match(form, /ForEach\(availablePlans\) \{ option in\s+Button \{\s+selected = option\s+manuallySelected = true/);
-  assert.match(load, /selected = fallback\s+\}\s+if !manuallySelected, products\[\.yearly\] != nil \{\s+selected = \.yearly\s+\}/);
+  const plans = section(form, 'ForEach(availablePlans)', '} label:');
+  assert.match(plans, /selectPlan\(option\)\s+manuallySelected = true/);
+  assert.match(load, /if !manuallySelected, products\[\.yearly\] != nil \{\s+selectPlan\(\.yearly\)/);
   assert.match(load, /trial = await subscription\.isEligibleForIntroOffer/);
   assert.match(paywall, /var hasTrial: Bool \{ selected == \.yearly && \(demo \|\| trial\) \}/);
   assert.match(form, /Button\(hasTrial \? "14日間無料で始める" : "購入する"\)/);
+});
+
+test('changing the selected plan clears purchase feedback for both taps and StoreKit reloads', () => {
+  const selection = section(paywall, 'private func selectPlan(', 'private func load() async');
+  assert.match(selection, /if selected != option, feedback\?\.operation == \.purchase \{ feedback = nil \}\s+selected = option/);
 });
 
 test('progress shows a seven-day stop total while a comparable week is unavailable', () => {

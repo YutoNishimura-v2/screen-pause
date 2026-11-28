@@ -172,14 +172,15 @@ test('strict mode is Pro-only and its purchase entry works before StoreKit refre
   assert.doesNotMatch(home, /store\.revision/);
 });
 
-test('the paywall explains the three Pro benefits before purchase and labels the annual offer', () => {
+test('the paywall keeps the Pro benefits in a disclosure and labels the annual offer', () => {
   const paywall = read('../App/Paywall.swift');
   const beforePurchase = section(paywall, 'Form {', 'Button(hasTrial ?');
   assert.ok(paywall.includes('Button(hasTrial ?'));
-  assert.match(beforePurchase, /厳格モード/);
-  assert.match(beforePurchase, /月ごとの達成カレンダー/);
-  assert.match(beforePurchase, /延びる待ち時間（最大\\\(PauseWindow\.escalationCap\)秒）/);
-  assert.match(beforePurchase, /if option == \.yearly \{\s+if demo \|\| trial \{ Text\("14日間無料"\)/);
+  const features = section(paywall, 'DisclosureGroup("Pro でできること")', '.accessibilityIdentifier("paywall-features")');
+  assert.match(features, /厳格モード/);
+  assert.match(features, /月ごとの達成カレンダー/);
+  assert.match(features, /延びる待ち時間（最大\\\(PauseWindow\.escalationCap\)秒）/);
+  assert.match(beforePurchase, /if option == \.yearly \{\s+if demo \|\| \(!loading && trial\) \{ Text\("14日間無料"\)/);
   assert.match(beforePurchase, /if let savings = yearlySavings \{\s+Text\("月額比/);
   assert.match(paywall, /let savings = \(1 - yearly \/ \(monthly \* 12\)\) \* 100/);
 });

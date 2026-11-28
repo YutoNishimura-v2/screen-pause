@@ -107,7 +107,7 @@ jobs:
               "05-shield-preview": "制限画面のプレビュー",
               "06-report": "利用時間レポート",
               "07-paywall": "購入画面",
-              "08-paywall-value": "Proで振り返れること",
+              "08-paywall-value": "2つ目の予定の例と月額・年額",
           }
           index = [
               f"成功 {os.environ['GITHUB_SHA']}", "",

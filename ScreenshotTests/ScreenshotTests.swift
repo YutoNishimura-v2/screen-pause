@@ -9,6 +9,125 @@ final class ScreenshotTests: XCTestCase {
         captureScreens(appearance: "dark")
     }
 
+    @MainActor func testPaywallAtAX5Light() {
+        exerciseAccessiblePaywall(appearance: "light")
+    }
+
+    @MainActor func testPaywallAtAX5Dark() {
+        exerciseAccessiblePaywall(appearance: "dark")
+    }
+
+    @MainActor func testPaywallDemoRestoreThenPlanChangeThenPurchase() {
+        let app = openDemoHome(appearance: "light", accessibilitySize: false)
+        let bar = openPaywall(in: app)
+        let restore = app.buttons["paywall-restore"]
+        let restoreMessage = app.staticTexts["paywall-restore-message"]
+        revealBelowBar(restore, bar: bar, in: app)
+        XCTAssertTrue(restore.isEnabled)
+        restore.tap()
+        revealBelowBar(restoreMessage, bar: bar, in: app)
+        XCTAssertEqual(restoreMessage.label, "デモ表示のため復元は行われません。")
+
+        let monthly = app.buttons["paywall-monthly"]
+        revealBelowBar(monthly, bar: bar, in: app, scrollingUp: true)
+        monthly.tap()
+        let purchase = app.buttons["paywall-purchase"]
+        revealBelowBar(purchase, bar: bar, in: app)
+        purchase.tap()
+        let message = app.staticTexts["paywall-message"]
+        revealBelowBar(message, bar: bar, in: app)
+        XCTAssertEqual(message.label, "デモ表示のため購入は行われません。")
+        revealBelowBar(element("利用規約", in: app), bar: bar, in: app)
+        XCTAssertFalse(restoreMessage.exists)
+    }
+
+    @MainActor func testPaywallDemoPurchaseThenRestore() {
+        let app = openDemoHome(appearance: "light", accessibilitySize: false)
+        let bar = openPaywall(in: app)
+        let purchase = app.buttons["paywall-purchase"]
+        revealBelowBar(purchase, bar: bar, in: app)
+        XCTAssertTrue(purchase.isEnabled)
+        purchase.tap()
+        let message = app.staticTexts["paywall-message"]
+        revealBelowBar(message, bar: bar, in: app)
+        XCTAssertEqual(message.label, "デモ表示のため購入は行われません。")
+
+        let restore = app.buttons["paywall-restore"]
+        revealBelowBar(restore, bar: bar, in: app)
+        restore.tap()
+        let restoreMessage = app.staticTexts["paywall-restore-message"]
+        revealBelowBar(restoreMessage, bar: bar, in: app)
+        XCTAssertEqual(restoreMessage.label, "デモ表示のため復元は行われません。")
+        revealBelowBar(element("paywall-billing", in: app), bar: bar, in: app, scrollingUp: true)
+        XCTAssertFalse(message.exists)
+    }
+
+    @MainActor func testPaywallDemoPlanChangeClearsPurchaseFeedback() {
+        let app = openDemoHome(appearance: "light", accessibilitySize: false)
+        let bar = openPaywall(in: app)
+        let purchase = app.buttons["paywall-purchase"]
+        revealBelowBar(purchase, bar: bar, in: app)
+        purchase.tap()
+        let message = app.staticTexts["paywall-message"]
+        revealBelowBar(message, bar: bar, in: app)
+
+        let monthly = app.buttons["paywall-monthly"]
+        revealBelowBar(monthly, bar: bar, in: app, scrollingUp: true)
+        monthly.tap()
+        revealBelowBar(element("paywall-billing", in: app), bar: bar, in: app)
+        XCTAssertFalse(message.exists)
+    }
+
+    func testPaywallRejectsPartialTermsInFormViewport() {
+        let form = CGRect(x: 0, y: 56, width: 390, height: 788)
+        let viewport = paywallViewport(form: form, barBottom: 96)
+        let partial = CGRect(x: 24, y: 790, width: 342, height: 600)
+        XCTAssertFalse(fullyVisible(partial, in: viewport))
+        let clippedAtBottom = partial.offsetBy(dx: 0, dy: -545)
+        for target in [PaywallRowTarget.whole, .beginning, .end] {
+            XCTAssertFalse(isPaywallTargetVisible(clippedAtBottom, in: viewport, target: target))
+        }
+        XCTAssertTrue(fullyVisible(partial.offsetBy(dx: 0, dy: -560), in: viewport))
+        XCTAssertFalse(fullyVisible(partial.offsetBy(dx: 0, dy: -700), in: viewport))
+        let shorterForm = CGRect(x: 0, y: 56, width: 390, height: 768)
+        XCTAssertFalse(fullyVisible(partial.offsetBy(dx: 0, dy: -560),
+                                    in: paywallViewport(form: shorterForm, barBottom: 96)))
+        XCTAssertGreaterThan(paywallScrollDistance(for: partial, in: viewport), 0)
+        let clippedAtTop = partial.offsetBy(dx: 0, dy: -700)
+        XCTAssertLessThan(paywallScrollDistance(for: clippedAtTop, in: viewport), 0)
+    }
+
+    func testPaywallRevealsOversizedBillingDetailsFromBeginningToEnd() {
+        let viewport = CGRect(x: 0, y: 106, width: 402, height: 768)
+        let beginning = CGRect(x: 24, y: 200, width: 342, height: 820)
+        let tail = paywallRevealFrame(beginning, in: viewport, target: .end)
+        let distance = paywallScrollDistance(for: tail, in: viewport)
+        XCTAssertGreaterThan(distance, 0)
+        let end = beginning.offsetBy(dx: 0, dy: -distance)
+        XCTAssertFalse(fullyVisible(beginning, in: viewport))
+        XCTAssertFalse(fullyVisible(end, in: viewport))
+        XCTAssertTrue(isPaywallTargetVisible(beginning, in: viewport, target: .beginning))
+        XCTAssertFalse(isPaywallTargetVisible(beginning, in: viewport, target: .end))
+        XCTAssertTrue(isPaywallTargetVisible(end, in: viewport, target: .end))
+        XCTAssertFalse(isPaywallTargetVisible(end, in: viewport, target: .beginning))
+        let aboveViewport = end.offsetBy(dx: 0, dy: -800)
+        XCTAssertFalse(isPaywallTargetVisible(aboveViewport, in: viewport, target: .end))
+        XCTAssertLessThan(paywallScrollDistance(for: paywallRevealFrame(aboveViewport, in: viewport, target: .end),
+                                               in: viewport), 0)
+    }
+
+    func testPaywallScrollsForCaptureEvenWhenPurchaseFitsInitially() {
+        let viewport = CGRect(x: 0, y: 96, width: 390, height: 748)
+        let monthly = CGRect(x: 24, y: 290, width: 342, height: 60)
+        let purchase = CGRect(x: 24, y: 620, width: 342, height: 52)
+        XCTAssertTrue(fullyVisible(purchase, in: viewport))
+        let initialGap = monthly.minY - viewport.minY
+        XCTAssertFalse(isAlignedForTermsCapture(gap: initialGap, initialGap: initialGap))
+        XCTAssertFalse(isAlignedForTermsCapture(gap: -4, initialGap: initialGap))
+        XCTAssertFalse(isAlignedForTermsCapture(gap: 14, initialGap: 14))
+        XCTAssertTrue(isAlignedForTermsCapture(gap: 14, initialGap: initialGap))
+    }
+
     @MainActor func testFirstBlockDemo() {
         exerciseFirstBlockDemo(appearance: "light", accessibilitySize: false)
     }
@@ -168,15 +287,199 @@ final class ScreenshotTests: XCTestCase {
         XCTAssertTrue(summary.label.contains("48分"))
         app.navigationBars.buttons.firstMatch.tap()
 
-        let paywall = app.buttons["home-paywall"]
-        reveal(paywall, in: app)
-        paywall.tap()
-        capture("08-paywall-value", appearance, visible: app.staticTexts["paywall-progress-value"])
+        verifyPaywall(in: app, appearance: appearance, capturePaywall: true)
+    }
+
+    @MainActor private func exerciseAccessiblePaywall(appearance: String) {
+        let app = openDemoHome(appearance: appearance, accessibilitySize: true)
+        verifyPaywall(in: app, appearance: appearance)
+    }
+
+    @MainActor private func openDemoHome(appearance: String, accessibilitySize: Bool) -> XCUIApplication {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["--screenshot-demo", "--screenshot-appearance", appearance,
+                               "-AppleLanguages", "(ja)", "-AppleLocale", "ja_JP"]
+        if accessibilitySize { app.launchArguments.append("--screenshot-ax5") }
+        app.launch()
+        let permission = element("setup-permission", in: app)
+        reveal(permission, in: app)
+        permission.tap()
+        let start = app.buttons["setup-start"]
+        reveal(start, in: app)
+        start.tap()
+        XCTAssertTrue(element("home-count", in: app).waitForExistence(timeout: 8))
+        return app
+    }
+
+    @MainActor private func openPaywall(in app: XCUIApplication) -> XCUIElement {
+        let entry = app.buttons["home-paywall"]
+        // The entry is the last home row; at AX5 it sits more than eight swipes down.
+        for _ in 0..<20 where !(entry.exists && entry.isHittable) { app.swipeUp() }
+        reveal(entry, in: app)
+        entry.tap()
+
+        let bar = app.navigationBars["ひと呼吸 Pro"]
+        XCTAssertTrue(bar.waitForExistence(timeout: 8))
+        let form = app.collectionViews["paywall-form"]
+        XCTAssertTrue(form.waitForExistence(timeout: 8))
+        return bar
+    }
+
+    /// 08 compares both prices with the entry example. 07 checks the selected terms and purchase action.
+    @MainActor private func verifyPaywall(in app: XCUIApplication, appearance: String, capturePaywall: Bool = false) {
+        let bar = openPaywall(in: app)
+        let form = app.collectionViews["paywall-form"]
+        let example = app.staticTexts["paywall-example"]
+        let monthly = app.buttons["paywall-monthly"]
+        let yearly = app.buttons["paywall-yearly"]
         let terms = app.staticTexts["paywall-terms"]
-        reveal(terms, in: app)
-        capture("07-paywall", appearance, visible: terms)
-        XCTAssertTrue(terms.label.contains("14日間無料"))
-        XCTAssertTrue(terms.label.contains("¥4,800／年"))
+        let billing = element("paywall-billing", in: app)
+        let demoNotice = app.staticTexts["paywall-demo"]
+        let purchase = app.buttons["paywall-purchase"]
+        XCTAssertTrue(example.waitForExistence(timeout: 8))
+        if !capturePaywall { revealBelowBar(example, bar: bar, in: app) }
+        XCTAssertTrue(example.label.contains("平日 20:00〜22:00"))
+        XCTAssertTrue(example.label.contains("土日 9:00〜11:00"))
+        XCTAssertFalse(app.staticTexts["paywall-progress-value"].exists)
+
+        if capturePaywall {
+            for row in [example, monthly, yearly] {
+                XCTAssertTrue(isBelowBar(row, bar: bar, in: app), row.debugDescription)
+            }
+            XCTAssertTrue(monthly.label.contains("¥600／月"))
+            XCTAssertTrue(yearly.label.contains("¥4,800／年"))
+            capture("08-paywall-value", appearance, visible: yearly)
+            let initialGap = monthly.frame.minY - bar.frame.maxY
+            // Expand the rows below the CTA so even tall viewports have room to align the prices.
+            for disclosure in [billing, element("paywall-features", in: app)] {
+                revealBelowBar(disclosure, bar: bar, in: app)
+                disclosure.tap()
+            }
+            revealBelowBar(monthly, bar: bar, in: app, scrollingUp: true)
+            for _ in 0..<8 {
+                let gap = monthly.frame.minY - bar.frame.maxY
+                if isAlignedForTermsCapture(gap: gap, initialGap: initialGap) { break }
+                dragPaywall(in: form, distance: max(-180, min(180, gap - 14)))
+            }
+            let finalGap = monthly.frame.minY - bar.frame.maxY
+            XCTAssertTrue(isAlignedForTermsCapture(gap: finalGap, initialGap: initialGap),
+                          "07 monthly row gap after scrolling: \(initialGap) → \(finalGap) pt")
+            for row in [monthly, yearly, demoNotice, terms, purchase] {
+                XCTAssertTrue(isBelowBar(row, bar: bar, in: app), row.debugDescription)
+            }
+            XCTAssertEqual(terms.label, "14日間無料。その後は ¥4,800／年で自動更新")
+            XCTAssertEqual(purchase.label, "14日間無料で始める")
+            capture("07-paywall", appearance, visible: terms)
+            return
+        }
+        // Check each row while it is on screen, including at AX5.
+        revealBelowBar(monthly, bar: bar, in: app)
+        XCTAssertTrue(monthly.label.contains("¥600／月"))
+        revealBelowBar(yearly, bar: bar, in: app)
+        XCTAssertTrue(yearly.label.contains("¥4,800／年"))
+        XCTAssertTrue(yearly.label.contains("14日間無料"))
+        XCTAssertEqual(yearly.value as? String, "選択中")
+        revealBelowBar(demoNotice, bar: bar, in: app)
+        XCTAssertTrue(demoNotice.label.contains("デモ表示"))
+        revealBelowBar(terms, bar: bar, in: app)
+        XCTAssertEqual(terms.label, "14日間無料。その後は ¥4,800／年で自動更新")
+        revealBelowBar(purchase, bar: bar, in: app)
+        XCTAssertEqual(purchase.label, "14日間無料で始める")
+        XCTAssertTrue(purchase.isEnabled)
+        revealBelowBar(monthly, bar: bar, in: app, scrollingUp: true)
+        monthly.tap()
+        XCTAssertEqual(monthly.value as? String, "選択中")
+        revealBelowBar(terms, bar: bar, in: app)
+        XCTAssertEqual(terms.label, "¥600／月で自動更新")
+        revealBelowBar(purchase, bar: bar, in: app)
+        XCTAssertEqual(purchase.label, "購入する")
+        revealBelowBar(billing, bar: bar, in: app)
+        billing.tap()
+        let details = app.staticTexts["paywall-billing-details"]
+        revealBelowBar(details, bar: bar, in: app, target: .beginning)
+        XCTAssertTrue(details.label.contains("24時間前まで"))
+        XCTAssertTrue(details.label.contains("Apple Account"))
+        revealBelowBar(details, bar: bar, in: app, target: .end)
+        XCTAssertTrue(details.label.hasSuffix("解約は端末のサブスクリプション設定から行えます。"))
+        revealBelowBar(app.buttons["paywall-restore"], bar: bar, in: app)
+    }
+
+    private func paywallViewport(form: CGRect, barBottom: CGFloat) -> CGRect {
+        let top = max(form.minY, barBottom)
+        return CGRect(x: form.minX, y: top, width: form.width, height: max(0, form.maxY - top))
+    }
+
+    private func fullyVisible(_ row: CGRect, in viewport: CGRect) -> Bool {
+        !row.isEmpty && viewport.contains(row)
+    }
+
+    private enum PaywallRowTarget { case whole, beginning, end }
+
+    private func paywallRevealFrame(_ row: CGRect, in viewport: CGRect, target: PaywallRowTarget) -> CGRect {
+        guard row.height > viewport.height else { return row }
+        switch target {
+        case .whole: return row
+        case .beginning: return CGRect(x: row.minX, y: row.minY, width: row.width, height: 1)
+        case .end: return CGRect(x: row.minX, y: row.maxY - 1, width: row.width, height: 1)
+        }
+    }
+
+    private func isPaywallTargetVisible(_ row: CGRect, in viewport: CGRect, target: PaywallRowTarget) -> Bool {
+        fullyVisible(paywallRevealFrame(row, in: viewport, target: target), in: viewport)
+    }
+
+    private func paywallScrollDistance(for target: CGRect, in viewport: CGRect) -> CGFloat {
+        if target.minY < viewport.minY { return target.minY - viewport.minY - 12 }
+        if target.maxY > viewport.maxY { return target.maxY - viewport.maxY + 12 }
+        return 0
+    }
+
+    private func isAlignedForTermsCapture(gap: CGFloat, initialGap: CGFloat) -> Bool {
+        (4...26).contains(gap) && initialGap - gap >= 24
+    }
+
+    @MainActor private func isBelowBar(_ row: XCUIElement, bar: XCUIElement, in app: XCUIApplication) -> Bool {
+        let form = app.collectionViews["paywall-form"]
+        guard form.exists, row.exists else { return false }
+        let viewport = paywallViewport(form: form.frame.intersection(app.frame), barBottom: bar.frame.maxY)
+        return fullyVisible(row.frame, in: viewport) && row.isHittable
+    }
+
+    @MainActor private func revealBelowBar(_ row: XCUIElement, bar: XCUIElement, in app: XCUIApplication,
+                                          scrollingUp: Bool = false, target: PaywallRowTarget = .whole) {
+        let form = app.collectionViews["paywall-form"]
+        XCTAssertTrue(form.exists)
+        let viewport = paywallViewport(form: form.frame.intersection(app.frame), barBottom: bar.frame.maxY)
+        guard !viewport.isEmpty else {
+            XCTFail("Paywall form has no viewport below the navigation bar")
+            return
+        }
+        let limit = min(240, viewport.height * 0.4)
+        for _ in 0..<30 {
+            var distance: CGFloat = scrollingUp ? -240 : 240
+            if row.exists {
+                let frame = row.frame
+                if !frame.isEmpty {
+                    let required = paywallRevealFrame(frame, in: viewport, target: target)
+                    if isPaywallTargetVisible(frame, in: viewport, target: target) {
+                        if required != frame || row.isHittable { return }
+                    } else {
+                        let adjustment = paywallScrollDistance(for: required, in: viewport)
+                        if adjustment != 0 { distance = adjustment }
+                    }
+                }
+            }
+            dragPaywall(in: form, distance: max(-limit, min(limit, distance)))
+        }
+        XCTFail("Could not reveal \(target) of \(row.debugDescription)")
+    }
+
+    /// Scrolls the paywall form by roughly `distance` points; positive moves content up.
+    @MainActor private func dragPaywall(in form: XCUIElement, distance: CGFloat) {
+        let start = form.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.55))
+        start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: 0, dy: -distance)),
+                    withVelocity: .slow, thenHoldForDuration: 0.25)
     }
 
     /// The demo picker shows candidates with their state and count, and cannot start with nothing chosen.

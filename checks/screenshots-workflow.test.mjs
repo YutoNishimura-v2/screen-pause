@@ -108,6 +108,7 @@ test('screenshots.yml tees every run step to tmp/ci-logs/ with pipefail and publ
   assert.match(indexStep.run, /publish = Path\("tmp\/ci-shots"\)/);
   assert.match(indexStep.run, /f"成功 \{os\.environ\['GITHUB_SHA'\]\}"/);
   assert.match(indexStep.run, /\(publish \/ "index\.md"\)\.write_text/);
+  assert.match(indexStep.run, /"08-paywall-value": "2つ目の予定の例と月額・年額"/);
 
   const publishStep = steps.find((step) => step.name === '撮影画像を公開');
   assert.ok(publishStep, '撮影画像を公開 step must exist');
@@ -121,6 +122,12 @@ test('screenshots.yml tees every run step to tmp/ci-logs/ with pipefail and publ
   assert.match(pushScript, /set -euo pipefail/);
   assert.match(pushScript, /echo "::add-mask::\$auth"/);
   assert.doesNotMatch(workflowText + '\n' + pushScript, /echo\s+["']?\$GH_TOKEN/);
+});
+
+test('paywall reload clears stale purchase feedback even when StoreKit falls back', () => {
+  const paywall = read('App/Paywall.swift');
+  const load = paywall.split('private func load() async {')[1].split('private func buy(')[0];
+  assert.match(load, /if feedback\?\.operation == \.purchase \{ feedback = nil \}[\s\S]*?try await Product\.products\(/);
 });
 
 test('screenshot capture uses the supported simulator battery state for an unplugged phone', () => {

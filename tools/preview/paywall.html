@@ -54,11 +54,6 @@
       flex-direction: column;
       gap: 12px;
     }
-    .section-header {
-      padding: 0 16px 4px;
-      font-size: 12px;
-      color: var(--secondary);
-    }
     .card {
       background: var(--card);
       border-radius: 10px;
@@ -140,13 +135,13 @@
       min-height: 40px;
       padding: 8px 14px;
       border-radius: 8px;
-      background: rgba(88, 86, 214, 0.45);
+      background: var(--indigo);
       color: #ffffff;
       font-size: 16px;
       font-weight: 600;
     }
     .restore-btn {
-      color: rgba(88, 86, 214, 0.45);
+      color: var(--indigo);
       font-size: 15px;
     }
     .legal-row {
@@ -173,21 +168,10 @@
     <section class="card">
       <div class="row">
         <h2 class="headline">時間帯を追加する</h2>
-        <p class="sub-copy">開かずに戻れた回数の履歴・週比較と連続日数</p>
+        <p class="sub-copy">例：平日 20:00〜22:00 と土日 9:00〜11:00 を別々の予定で制限できます。</p>
         <p class="footnote">利用時間レポートは無料で使えます。</p>
       </div>
     </section>
-
-    <div>
-      <div class="section-header">Pro でできること</div>
-      <section class="card">
-        <div class="row">厳格モードで制限中の一時解除を止める</div>
-        <div class="row">開くたびに延びる待ち時間（最大300秒）</div>
-        <div class="row">月ごとの達成カレンダー</div>
-        <div class="row">複数の制限予定</div>
-        <div class="row">待ち時間と制限画面のメッセージの変更</div>
-      </section>
-    </div>
 
     <section class="card">
       <div class="row plan-row">
@@ -219,11 +203,15 @@
 
     <section class="card">
       <div class="row">
-        <p class="terms">14日間無料。その後は ¥4,800／年。無料期間終了の24時間前までに解約すれば料金はかかりません。期間終了の24時間前までに解約しない限り自動更新されます。購入確認時と更新時にApple Accountに請求されます。解約は端末のサブスクリプション設定から行えます。</p>
+        <p class="footnote">デモ表示：購入と復元は行われません</p>
+      </div>
+      <div class="row">
+        <p class="terms">14日間無料。その後は ¥4,800／年で自動更新</p>
       </div>
       <div class="row">
         <div class="cta-btn">14日間無料で始める</div>
       </div>
+      <div class="row">請求と解約の詳細</div>
     </section>
 
     <section class="card">
@@ -242,6 +230,9 @@
           <path d="M1.2 1.2L6.8 7l-5.6 5.8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
         </svg>
       </div>
+    </section>
+    <section class="card">
+      <div class="row">Pro でできること</div>
     </section>
   </main>
 </body>
